@@ -2,12 +2,12 @@
 One-time ingestion script: download HTS data, embed all entries, persist to ChromaDB.
 
 Usage:
-    uv run scripts/ingest.py                  # full ingest
+    uv run scripts/ingest.py                  # full ingest (resumes if interrupted)
     uv run scripts/ingest.py --limit 100      # test run: first 100 entries only
     uv run scripts/ingest.py --chapters 84,85 # test run: specific chapters only
 
 Re-run whenever the HTS data is updated (delete data/hts_raw.json to force re-download).
-Delete data/chroma to force re-embedding.
+Delete data/chroma to force re-embedding from scratch.
 """
 
 import argparse
@@ -31,34 +31,24 @@ from hts_classifier.data.processor import (
 from hts_classifier.services.vector_store import VectorStore
 from hts_classifier.services.vertex import embed_texts
 
+# Number of entries to embed + upsert per chunk. Smaller = more resume granularity.
+_CHUNK_SIZE = 2000
+
 
 def _average_embeddings(a: list[float], b: list[float]) -> list[float]:
     return [(x + y) / 2 for x, y in zip(a, b)]
 
 
-async def embed_entries(entries: list[HTSEntry]) -> list[list[float]]:
-    """
-    Embed each entry as the average of leaf description and full path string.
-    Balances specificity (leaf) with hierarchy context (path).
-    """
-    logger.info(f"Embedding {len(entries):,} entries (2 passes: leaf + path)...")
-
-    logger.info("  Pass 1/2: leaf descriptions")
+async def ingest_chunk(entries: list[HTSEntry], store: VectorStore) -> None:
+    """Embed one chunk and upsert into ChromaDB."""
     leaf_embeddings = await embed_texts(
-        [e.description for e in entries], task_type="RETRIEVAL_DOCUMENT"
+        [e.description for e in entries], task_type="RETRIEVAL_DOCUMENT", show_progress=True
     )
-
-    logger.info("  Pass 2/2: path strings")
     path_embeddings = await embed_texts(
-        [e.path_string for e in entries], task_type="RETRIEVAL_DOCUMENT"
+        [e.path_string for e in entries], task_type="RETRIEVAL_DOCUMENT", show_progress=True
     )
-
-    combined = [
-        _average_embeddings(leaf, p)
-        for leaf, p in zip(leaf_embeddings, path_embeddings)
-    ]
-    logger.info(f"  Done. Embedding dim: {len(combined[0])}")
-    return combined
+    combined = [_average_embeddings(leaf, p) for leaf, p in zip(leaf_embeddings, path_embeddings)]
+    store.upsert(entries, combined)
 
 
 async def main(limit: int | None, chapters: list[str] | None) -> None:
@@ -66,50 +56,48 @@ async def main(limit: int | None, chapters: list[str] | None) -> None:
     logger.info(f"Loaded {len(raw):,} raw HTS entries")
 
     flat_entries, chapter_tree = build_tree_and_flat(raw)
-    logger.info(
-        f"Processed {len(flat_entries):,} entries with HTS codes across {len(chapter_tree)} chapters"
-    )
+    logger.info(f"Processed {len(flat_entries):,} entries with HTS codes across {len(chapter_tree)} chapters")
 
-    # Filter to specific chapters if requested
     if chapters:
         flat_entries = [
             e for e in flat_entries if any(e.hts_code.startswith(ch) for ch in chapters)
         ]
         logger.info(f"Filtered to chapters {chapters}: {len(flat_entries):,} entries")
 
-    # Hard limit for quick testing
     if limit is not None:
         flat_entries = flat_entries[:limit]
         logger.info(f"Limiting to first {limit} entries for test run")
 
     is_test = limit is not None or chapters is not None
-    processed_path = (
-        settings.hts_processed_path if not is_test else "data/hts_processed_test.json"
-    )
-    chroma_path = settings.chroma_path if not is_test else "data/chroma_test"
+    processed_path = settings.hts_processed_path if not is_test else "data/hts_processed_test.json"
 
     save_flat_entries(flat_entries, processed_path)
     logger.info(f"Saved flat entries to {processed_path}")
 
-    embeddings = await embed_entries(flat_entries)
-
-    logger.info("Upserting into ChromaDB...")
-    # Override chroma path for test runs
     if is_test:
         import chromadb
-
+        chroma_path = "data/chroma_test"
         client = chromadb.PersistentClient(path=chroma_path)
-        collection = client.get_or_create_collection(
-            "hts_entries", metadata={"hnsw:space": "cosine"}
-        )
-        batch_size = 500
-        for i in tqdm(range(0, len(flat_entries), batch_size)):
-            batch_e = flat_entries[i : i + batch_size]
-            batch_emb = embeddings[i : i + batch_size]
+        collection = client.get_or_create_collection("hts_entries", metadata={"hnsw:space": "cosine"})
+
+        already_indexed: set[str] = set(collection.get(include=[])["ids"])  # ty: ignore[index]
+        todo = [e for e in flat_entries if e.hts_code not in already_indexed]
+        if already_indexed:
+            logger.info(f"Resuming: {len(already_indexed):,} already indexed, {len(todo):,} remaining")
+
+        for i in tqdm(range(0, len(todo), _CHUNK_SIZE), desc="chunks"):
+            chunk = todo[i : i + _CHUNK_SIZE]
+            leaf_embs = await embed_texts(
+                [e.description for e in chunk], task_type="RETRIEVAL_DOCUMENT", show_progress=True
+            )
+            path_embs = await embed_texts(
+                [e.path_string for e in chunk], task_type="RETRIEVAL_DOCUMENT", show_progress=True
+            )
+            combined = [_average_embeddings(leaf, p) for leaf, p in zip(leaf_embs, path_embs)]
             collection.upsert(
-                ids=[e.hts_code for e in batch_e],
-                embeddings=batch_emb,  # ty: ignore[invalid-argument-type]
-                documents=[e.path_string for e in batch_e],
+                ids=[e.hts_code for e in chunk],
+                embeddings=combined,  # ty: ignore[invalid-argument-type]
+                documents=[e.path_string for e in chunk],
                 metadatas=[
                     {
                         "hts_code": e.hts_code,
@@ -118,19 +106,23 @@ async def main(limit: int | None, chapters: list[str] | None) -> None:
                         "indent": e.indent,
                         "general_rate": e.general_rate,
                     }
-                    for e in batch_e
+                    for e in chunk
                 ],
             )
-        logger.info(
-            f"Test ChromaDB at '{chroma_path}' now contains {collection.count():,} entries"
-        )
+        logger.info(f"Test ChromaDB at '{chroma_path}' now contains {collection.count():,} entries")
     else:
         store = VectorStore()
-        batch_size = 500
-        for i in tqdm(range(0, len(flat_entries), batch_size)):
-            store.upsert(
-                flat_entries[i : i + batch_size], embeddings[i : i + batch_size]
-            )
+
+        already_indexed: set[str] = set(store.get_all_ids())
+        todo = [e for e in flat_entries if e.hts_code not in already_indexed]
+        if already_indexed:
+            logger.info(f"Resuming: {len(already_indexed):,} already indexed, {len(todo):,} remaining")
+
+        for i in tqdm(range(0, len(todo), _CHUNK_SIZE), desc="chunks"):
+            chunk = todo[i : i + _CHUNK_SIZE]
+            logger.info(f"Chunk {i // _CHUNK_SIZE + 1}: embedding {len(chunk):,} entries...")
+            await ingest_chunk(chunk, store)
+
         logger.info(f"ChromaDB now contains {store.count:,} entries")
 
     logger.info("Ingestion complete.")
@@ -139,22 +131,14 @@ async def main(limit: int | None, chapters: list[str] | None) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Ingest HTS data into ChromaDB")
     parser.add_argument(
-        "--limit",
-        type=int,
-        default=None,
-        help="Only embed the first N entries (for testing)",
+        "--limit", type=int, default=None,
+        help="Only embed the first N entries (for testing)"
     )
     parser.add_argument(
-        "--chapters",
-        type=str,
-        default=None,
-        help="Comma-separated 2-digit chapter codes to ingest (e.g. '84,85')",
+        "--chapters", type=str, default=None,
+        help="Comma-separated 2-digit chapter codes to ingest (e.g. '84,85')"
     )
     args = parser.parse_args()
-    chapter_list = (
-        [c.strip().zfill(2) for c in args.chapters.split(",")]
-        if args.chapters
-        else None
-    )
+    chapter_list = [c.strip().zfill(2) for c in args.chapters.split(",")] if args.chapters else None
 
     asyncio.run(main(limit=args.limit, chapters=chapter_list))

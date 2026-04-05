@@ -14,7 +14,6 @@ class Settings(BaseSettings):
     hts_raw_path: str = "data/hts_raw.json"
     hts_processed_path: str = "data/hts_processed.json"
 
-    embedding_concurrency: int = 8
     beam_width: int = 3
     default_top_k: int = 5
 

@@ -21,6 +21,9 @@ class VectorStore:
     def count(self) -> int:
         return self._collection.count()
 
+    def get_all_ids(self) -> list[str]:
+        return self._collection.get(include=[])["ids"]  # ty: ignore[index]
+
     def upsert(self, entries: list[HTSEntry], embeddings: list[list[float]]) -> None:
         self._collection.upsert(
             ids=[e.hts_code for e in entries],

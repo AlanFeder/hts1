@@ -1,26 +1,30 @@
 import asyncio
+import threading
 
 from google import genai
+from tqdm import tqdm
 from google.genai.types import EmbedContentConfig
 
 from ..core.config import settings
 
-_client: genai.Client | None = None
+# Thread-local storage: each executor thread gets its own client instance.
+# A shared singleton is not safe when run_in_executor fires concurrent threads.
+_thread_local = threading.local()
 
-# text-embedding-005 supports up to 20k tokens per request (~4 chars/token).
-# 60k chars gives a comfortable safety margin across all HTS path lengths.
-_MAX_CHARS_PER_BATCH = 60_000
+# text-embedding-005 limits: 250 instances per request, 20k tokens per request.
+# Short HTS descriptions average ~2 chars/token, so 30k chars ≈ 15k tokens.
+_MAX_CHARS_PER_BATCH = 30_000
+_MAX_TEXTS_PER_BATCH = 250
 
 
 def get_client() -> genai.Client:
-    global _client
-    if _client is None:
-        _client = genai.Client(
+    if not hasattr(_thread_local, "client"):
+        _thread_local.client = genai.Client(
             vertexai=True,
             project=settings.google_cloud_project,
             location=settings.google_cloud_location,
         )
-    return _client
+    return _thread_local.client
 
 
 def _embed_batch_sync(texts: list[str], task_type: str) -> list[list[float]]:
@@ -48,7 +52,7 @@ def _make_batches(texts: list[str]) -> list[list[str]]:
     current_chars = 0
     for text in texts:
         n = len(text)
-        if current and current_chars + n > _MAX_CHARS_PER_BATCH:
+        if current and (current_chars + n > _MAX_CHARS_PER_BATCH or len(current) >= _MAX_TEXTS_PER_BATCH):
             batches.append(current)
             current = [text]
             current_chars = n
@@ -63,18 +67,17 @@ def _make_batches(texts: list[str]) -> list[list[str]]:
 async def embed_texts(
     texts: list[str],
     task_type: str = "RETRIEVAL_DOCUMENT",
+    show_progress: bool = False,
 ) -> list[list[float]]:
-    """Embed texts with dynamic batching and concurrent requests."""
+    """Embed texts with dynamic batching, sequential requests."""
     loop = asyncio.get_running_loop()
     batches = _make_batches(texts)
-    sem = asyncio.Semaphore(settings.embedding_concurrency)
-
-    async def _embed(batch: list[str]) -> list[list[float]]:
-        async with sem:
-            return await loop.run_in_executor(None, _embed_batch_sync, batch, task_type)
-
-    results = await asyncio.gather(*[_embed(b) for b in batches])
-    return [emb for batch_result in results for emb in batch_result]
+    results: list[list[float]] = []
+    it = tqdm(batches, desc="batches") if show_progress else batches
+    for batch in it:
+        batch_result = await loop.run_in_executor(None, _embed_batch_sync, batch, task_type)
+        results.extend(batch_result)
+    return results
 
 
 async def embed_query(text: str) -> list[float]:
