@@ -5,8 +5,6 @@ export const config = {
   googleCloudLocation: process.env.GOOGLE_CLOUD_LOCATION ?? "us-central1",
   generationModel: process.env.GENERATION_MODEL ?? "gemini-2.5-flash-lite",
   embeddingModel: process.env.EMBEDDING_MODEL ?? "text-embedding-005",
-  // ChromaDB HTTP server URL — run: chroma run --path data/chroma --port 8001
-  chromaUrl: process.env.CHROMA_URL ?? "http://localhost:8001",
   beamWidth: parseInt(process.env.BEAM_WIDTH ?? "3", 10),
   htsProcessedPath: process.env.HTS_PROCESSED_PATH ?? "data/hts_processed.json",
   htsRawPath: process.env.HTS_RAW_PATH ?? "data/hts_raw.json",

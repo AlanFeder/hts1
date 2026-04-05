@@ -17,11 +17,28 @@ const PARAM_METHODS: Record<string, string> = {
   beam_width: "agentic",
 };
 
+function embeddingFiles(name: string): { bin: string; meta: string } {
+  return {
+    bin: `data/embeddings_${name}.bin`,
+    meta: `data/embeddings_${name}_meta.json`,
+  };
+}
+
 async function main() {
   const server = Fastify({ logger: false });
 
-  // ─── Validate ChromaDB is accessible ──────────────────────────────────────
-  // (ChromaDB HTTP server must be running — see README for startup instructions)
+  // ─── Check exported embedding files ───────────────────────────────────────
+  for (const name of [COLLECTION_AVG, COLLECTION_LEAF, COLLECTION_PATH]) {
+    const { bin, meta } = embeddingFiles(name);
+    if (!existsSync(bin) || !existsSync(meta)) {
+      console.error(
+        `Embedding files not found for collection '${name}'.\n` +
+        `Expected: ${bin}  and  ${meta}\n` +
+        "Run the one-time export first:\n  uv run scripts/export_embeddings.py"
+      );
+      process.exit(1);
+    }
+  }
 
   // ─── Load HTS data ────────────────────────────────────────────────────────
   if (!existsSync(config.htsRawPath) || !existsSync(config.htsProcessedPath)) {
@@ -36,29 +53,20 @@ async function main() {
   const { flatEntries, chapters } = loadOrProcess(config.htsRawPath, config.htsProcessedPath);
   console.info(`Flat entries: ${flatEntries.length.toLocaleString()} | Chapters: ${chapters.size}`);
 
-  // ─── Init ChromaDB collections ────────────────────────────────────────────
-  console.info("Connecting to ChromaDB…");
+  // ─── Load in-memory vector stores ────────────────────────────────────────
+  console.info("Loading embeddings into memory…");
   const avgStore = new VectorStore(COLLECTION_AVG);
   const leafStore = new VectorStore(COLLECTION_LEAF);
   const pathStore = new VectorStore(COLLECTION_PATH);
 
-  try {
-    await Promise.all([avgStore.init(), leafStore.init(), pathStore.init()]);
-  } catch (err) {
-    console.error(
-      `Failed to connect to ChromaDB at ${config.chromaUrl}.\n` +
-      "Start it with: chroma run --path data/chroma --port 8001\n",
-      err
-    );
-    process.exit(1);
+  for (const [store, name] of [[avgStore, COLLECTION_AVG], [leafStore, COLLECTION_LEAF], [pathStore, COLLECTION_PATH]] as const) {
+    const { bin, meta } = embeddingFiles(name);
+    store.load(bin, meta);
   }
 
-  const [avgCount, leafCount, pathCount] = await Promise.all([
-    avgStore.count,
-    leafStore.count,
-    pathStore.count,
-  ]);
-  console.info(`ChromaDB: avg=${avgCount.toLocaleString()} leaf=${leafCount.toLocaleString()} path=${pathCount.toLocaleString()}`);
+  console.info(
+    `Loaded: avg=${avgStore.count.toLocaleString()} leaf=${leafStore.count.toLocaleString()} path=${pathStore.count.toLocaleString()}`
+  );
 
   // ─── Wire up classifiers ──────────────────────────────────────────────────
   const classifiers = {
@@ -71,7 +79,7 @@ async function main() {
   // ─── Routes ───────────────────────────────────────────────────────────────
 
   server.get("/health", async () => {
-    return { status: "ok", indexed_entries: avgCount };
+    return { status: "ok", indexed_entries: avgStore.count };
   });
 
   server.post<{ Body: ClassifyRequest; Reply: ClassifyResponse }>(
@@ -95,42 +103,24 @@ async function main() {
         }
       }
 
-      const classifier = classifiers[body.method];
-      let response: ClassifyResponse;
-
       switch (body.method) {
         case "embeddings":
-          response = await (classifier as EmbeddingsClassifier).classify(
-            body.description, body.top_k, body.path_weight
-          );
-          break;
+          return classifiers.embeddings.classify(body.description, body.top_k, body.path_weight);
         case "gar":
-          response = await (classifier as GARClassifier).classify(
-            body.description, body.top_k
-          );
-          break;
+          return classifiers.gar.classify(body.description, body.top_k);
         case "rerank":
-          response = await (classifier as RerankClassifier).classify(
-            body.description, body.top_k, body.candidate_pool
-          );
-          break;
+          return classifiers.rerank.classify(body.description, body.top_k, body.candidate_pool);
         case "agentic":
-          response = await (classifier as AgenticClassifier).classify(
-            body.description, body.top_k, body.beam_width
-          );
-          break;
+          return classifiers.agentic.classify(body.description, body.top_k, body.beam_width);
         default:
           return reply.status(400).send({ error: `Unknown method: ${body.method}` } as unknown as ClassifyResponse);
       }
-
-      return response;
     }
   );
 
   // ─── Start ────────────────────────────────────────────────────────────────
   await server.listen({ port: config.port, host: "0.0.0.0" });
   console.info(`HTS Classifier (TS) listening on http://localhost:${config.port}`);
-  console.info(`Docs: http://localhost:${config.port}/docs (not available — use curl/Postman)`);
 }
 
 main().catch((err) => {
