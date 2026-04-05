@@ -1,5 +1,6 @@
 import asyncio
 import threading
+from typing import NamedTuple
 
 from google import genai
 from tqdm import tqdm
@@ -15,6 +16,31 @@ _thread_local = threading.local()
 # Short HTS descriptions average ~2 chars/token, so 30k chars ≈ 15k tokens.
 _MAX_CHARS_PER_BATCH = 30_000
 _MAX_TEXTS_PER_BATCH = 250
+
+# Approximate Vertex AI pricing (USD). Update if model changes.
+# gemini-2.5-flash-lite: $0.10/1M input tokens, $0.40/1M output tokens
+# text-embedding-005: $0.000025/1K characters
+_PRICE_INPUT_PER_TOKEN = 0.10 / 1_000_000
+_PRICE_OUTPUT_PER_TOKEN = 0.40 / 1_000_000
+_PRICE_EMBED_PER_CHAR = 0.000025 / 1_000
+
+
+class GenerateResult(NamedTuple):
+    text: str
+    input_tokens: int
+    output_tokens: int
+
+    @property
+    def cost_usd(self) -> float:
+        return (
+            self.input_tokens * _PRICE_INPUT_PER_TOKEN
+            + self.output_tokens * _PRICE_OUTPUT_PER_TOKEN
+        )
+
+
+def embed_cost(texts: list[str]) -> float:
+    """Approximate embedding cost based on character count."""
+    return sum(len(t) for t in texts) * _PRICE_EMBED_PER_CHAR
 
 
 def get_client() -> genai.Client:
@@ -37,12 +63,17 @@ def _embed_batch_sync(texts: list[str], task_type: str) -> list[list[float]]:
     return [e.values or [] for e in response.embeddings]
 
 
-def _generate_sync(prompt: str) -> str:
+def _generate_sync(prompt: str) -> GenerateResult:
     response = get_client().models.generate_content(
         model=settings.generation_model,
         contents=prompt,
     )
-    return response.text or ""
+    usage = response.usage_metadata
+    return GenerateResult(
+        text=response.text or "",
+        input_tokens=getattr(usage, "prompt_token_count", 0) or 0,
+        output_tokens=getattr(usage, "candidates_token_count", 0) or 0,
+    )
 
 
 def _make_batches(texts: list[str]) -> list[list[str]]:
@@ -90,6 +121,6 @@ async def embed_query(text: str) -> list[float]:
     return results[0]
 
 
-async def generate_text(prompt: str) -> str:
+async def generate_text(prompt: str) -> GenerateResult:
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(None, _generate_sync, prompt)

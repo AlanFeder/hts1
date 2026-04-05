@@ -5,7 +5,7 @@ from loguru import logger
 
 from ..core.models import ClassifyResponse, HTSResult
 from ..services.vector_store import VectorStore
-from ..services.vertex import embed_query, generate_text
+from ..services.vertex import embed_cost, embed_query, generate_text
 from .base import BaseClassifier
 
 _CANDIDATE_POOL = 20
@@ -41,15 +41,21 @@ class RerankClassifier(BaseClassifier):
         self._candidate_pool = candidate_pool
 
     async def classify(
-        self, description: str, top_k: int = 5, path_weight: float | None = None
+        self,
+        description: str,
+        top_k: int = 5,
+        path_weight: float | None = None,
+        candidate_pool: int | None = None,
+        beam_width: int | None = None,
     ) -> ClassifyResponse:
+        pool = candidate_pool if candidate_pool is not None else self._candidate_pool
         logger.info(
-            f"rerank | query={description!r} top_k={top_k} candidate_pool={self._candidate_pool}"
+            f"rerank | query={description!r} top_k={top_k} candidate_pool={pool}"
         )
 
         # Step 1: embedding retrieval
         embedding = await embed_query(description)
-        candidates = self._store.query(embedding, top_k=self._candidate_pool)
+        candidates = self._store.query(embedding, top_k=pool)
 
         logger.info(
             f"rerank | retrieved {len(candidates)} candidates from vector store"
@@ -74,14 +80,15 @@ class RerankClassifier(BaseClassifier):
             f"{i + 1}. [{c['hts_code']}] {c['description']} (path: {' > '.join(c['path'][-2:])})"
             for i, c in enumerate(candidates)
         )
-        response = await generate_text(
+        rerank_result = await generate_text(
             _RERANK_PROMPT.format(
                 description=description,
                 options=options,
                 n=len(candidates),
             )
         )
-        logger.debug(f"rerank | LLM rerank response: {response}")
+        response = rerank_result.text
+        logger.debug(f"rerank | LLM rerank response: {response} tokens={rerank_result.input_tokens}+{rerank_result.output_tokens} cost=${rerank_result.cost_usd:.6f}")
 
         # Parse reranked order
         reranked_indices: list[int] = []
@@ -119,8 +126,9 @@ class RerankClassifier(BaseClassifier):
             ],
             method="rerank",
             query=description,
+            cost_usd=embed_cost([description]) + rerank_result.cost_usd,
             intermediates={
-                "candidate_pool": self._candidate_pool,
+                "candidate_pool": pool,
                 "initial_ranking": initial_ranking,
                 "llm_raw_response": response,
                 "reranked_ranking": [

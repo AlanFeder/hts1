@@ -27,12 +27,18 @@ class GARClassifier(BaseClassifier):
         self._entries = entries
 
     async def classify(
-        self, description: str, top_k: int = 5, path_weight: float | None = None
+        self,
+        description: str,
+        top_k: int = 5,
+        path_weight: float | None = None,
+        candidate_pool: int | None = None,
+        beam_width: int | None = None,
     ) -> ClassifyResponse:
         logger.info(f"gar | query={description!r} top_k={top_k}")
 
-        response = await generate_text(_PROMPT.format(description=description))
-        logger.debug(f"gar | raw LLM response: {response}")
+        result = await generate_text(_PROMPT.format(description=description))
+        response = result.text
+        logger.debug(f"gar | raw LLM response: {response} tokens={result.input_tokens}+{result.output_tokens} cost=${result.cost_usd:.6f}")
 
         expanded_terms: list[str] = [description]
         match = re.search(r"\[.*?\]", response, re.DOTALL)
@@ -83,5 +89,6 @@ class GARClassifier(BaseClassifier):
             ],
             method="gar",
             query=description,
+            cost_usd=result.cost_usd,
             intermediates=intermediates,
         )

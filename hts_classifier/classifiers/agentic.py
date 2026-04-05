@@ -88,12 +88,19 @@ class AgenticClassifier(BaseClassifier):
         self._beam_width = beam_width or settings.beam_width
 
     async def classify(
-        self, description: str, top_k: int = 5, path_weight: float | None = None
+        self,
+        description: str,
+        top_k: int = 5,
+        path_weight: float | None = None,
+        candidate_pool: int | None = None,
+        beam_width: int | None = None,
     ) -> ClassifyResponse:
+        bw = beam_width if beam_width is not None else self._beam_width
         logger.info(
-            f"agentic | query={description!r} top_k={top_k} beam_width={self._beam_width}"
+            f"agentic | query={description!r} top_k={top_k} beam_width={bw}"
         )
         beam_steps: list[dict] = []
+        total_cost = 0.0
 
         # Step 1: chapter selection
         chapter_lines = []
@@ -102,20 +109,21 @@ class AgenticClassifier(BaseClassifier):
             sample = ", ".join(n.description.rstrip(":") for n in nodes[:3])
             chapter_lines.append(f"{ch}: {sample}…")
 
-        response = await generate_text(
+        ch_result = await generate_text(
             _CHAPTER_PROMPT.format(
                 description=description,
-                n=self._beam_width,
+                n=bw,
                 options="\n".join(chapter_lines),
             )
         )
-        selected_ch_codes = _parse_str_list(response)
+        total_cost += ch_result.cost_usd
+        selected_ch_codes = _parse_str_list(ch_result.text)
         logger.info(f"agentic | selected chapters: {selected_ch_codes}")
         beam_steps.append(
             {
                 "step": "chapter_selection",
                 "selected": selected_ch_codes,
-                "llm_response": response,
+                "llm_response": ch_result.text,
             }
         )
 
@@ -126,7 +134,7 @@ class AgenticClassifier(BaseClassifier):
             heading_nodes.extend(self._chapters.get(key, []))
 
         if not heading_nodes:
-            for _, nodes in sorted_chapters[: self._beam_width]:
+            for _, nodes in sorted_chapters[:bw]:
                 heading_nodes.extend(nodes)
 
         beam: list[HTSNode] = _bm25_prefilter(
@@ -146,17 +154,18 @@ class AgenticClassifier(BaseClassifier):
             options = "\n".join(
                 f"{i + 1}. {_format_node(n)}" for i, n in enumerate(candidates)
             )
-            response = await generate_text(
+            step_result = await generate_text(
                 _SELECT_PROMPT.format(
                     description=description,
-                    n=min(self._beam_width, len(candidates)),
+                    n=min(bw, len(candidates)),
                     options=options,
                 )
             )
-            indices = _parse_int_list(response)
+            total_cost += step_result.cost_usd
+            indices = _parse_int_list(step_result.text)
             selected = [candidates[i - 1] for i in indices if 0 < i <= len(candidates)]
             if not selected:
-                selected = candidates[: self._beam_width]
+                selected = candidates[:bw]
 
             selected_descs = [_format_node(n) for n in selected]
             logger.info(f"agentic | depth={depth} selected: {selected_descs}")
@@ -165,7 +174,7 @@ class AgenticClassifier(BaseClassifier):
                     "step": f"depth_{depth}",
                     "candidates_count": len(candidates),
                     "selected": selected_descs,
-                    "llm_response": response,
+                    "llm_response": step_result.text,
                 }
             )
 
@@ -189,10 +198,11 @@ class AgenticClassifier(BaseClassifier):
             options = "\n".join(
                 f"{i + 1}. {_format_node(n)}" for i, n in enumerate(final_candidates)
             )
-            response = await generate_text(
+            final_result = await generate_text(
                 _SELECT_PROMPT.format(description=description, n=top_k, options=options)
             )
-            indices = _parse_int_list(response)
+            total_cost += final_result.cost_usd
+            indices = _parse_int_list(final_result.text)
             final = [
                 final_candidates[i - 1]
                 for i in indices
@@ -200,14 +210,15 @@ class AgenticClassifier(BaseClassifier):
             ]
             if not final:
                 final = final_candidates[:top_k]
+            final_llm_response = final_result.text
         else:
             final = final_candidates
-            response = ""
+            final_llm_response = ""
 
         final_descs = [_format_node(n) for n in final]
-        logger.info(f"agentic | final results: {final_descs}")
+        logger.info(f"agentic | final results: {final_descs} total_cost=${total_cost:.6f}")
         beam_steps.append(
-            {"step": "final_ranking", "selected": final_descs, "llm_response": response}
+            {"step": "final_ranking", "selected": final_descs, "llm_response": final_llm_response}
         )
 
         return ClassifyResponse(
@@ -223,5 +234,6 @@ class AgenticClassifier(BaseClassifier):
             ],
             method="agentic",
             query=description,
+            cost_usd=total_cost,
             intermediates={"beam_steps": beam_steps},
         )

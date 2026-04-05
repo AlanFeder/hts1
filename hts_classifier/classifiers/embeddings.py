@@ -3,7 +3,7 @@ from loguru import logger
 
 from ..core.models import ClassifyResponse, HTSResult
 from ..services.vector_store import VectorStore
-from ..services.vertex import embed_query
+from ..services.vertex import embed_cost, embed_query
 from .base import BaseClassifier
 
 
@@ -19,7 +19,12 @@ class EmbeddingsClassifier(BaseClassifier):
         self._path_store = path_store
 
     async def classify(
-        self, description: str, top_k: int = 5, path_weight: float | None = None
+        self,
+        description: str,
+        top_k: int = 5,
+        path_weight: float | None = None,
+        candidate_pool: int | None = None,
+        beam_width: int | None = None,
     ) -> ClassifyResponse:
         logger.info(
             f"embeddings | query={description!r} top_k={top_k} path_weight={path_weight}"
@@ -75,6 +80,7 @@ class EmbeddingsClassifier(BaseClassifier):
             ],
             method="embeddings",
             query=description,
+            cost_usd=embed_cost([description]),
             intermediates={
                 "query_embedding_norm": norm,
                 "embedding_dim": len(embedding),
