@@ -217,3 +217,7 @@ __marimo__/
 
 **/data/**/*.*
 !.gitkeep
+# Node.js
+node_modules/
+dist/
+*.tsbuildinfo
