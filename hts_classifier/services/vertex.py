@@ -7,6 +7,10 @@ from ..core.config import settings
 
 _client: genai.Client | None = None
 
+# text-embedding-005 supports up to 20k tokens per request (~4 chars/token).
+# 60k chars gives a comfortable safety margin across all HTS path lengths.
+_MAX_CHARS_PER_BATCH = 60_000
+
 
 def get_client() -> genai.Client:
     global _client
@@ -37,21 +41,40 @@ def _generate_sync(prompt: str) -> str:
     return response.text or ""
 
 
+def _make_batches(texts: list[str]) -> list[list[str]]:
+    """Split texts into batches that stay within the token limit."""
+    batches: list[list[str]] = []
+    current: list[str] = []
+    current_chars = 0
+    for text in texts:
+        n = len(text)
+        if current and current_chars + n > _MAX_CHARS_PER_BATCH:
+            batches.append(current)
+            current = [text]
+            current_chars = n
+        else:
+            current.append(text)
+            current_chars += n
+    if current:
+        batches.append(current)
+    return batches
+
+
 async def embed_texts(
     texts: list[str],
     task_type: str = "RETRIEVAL_DOCUMENT",
 ) -> list[list[float]]:
-    """Embed texts in batches. Use task_type='RETRIEVAL_QUERY' for queries."""
-    loop = asyncio.get_event_loop()
-    batch_size = settings.embedding_batch_size
-    all_embeddings: list[list[float]] = []
+    """Embed texts with dynamic batching and concurrent requests."""
+    loop = asyncio.get_running_loop()
+    batches = _make_batches(texts)
+    sem = asyncio.Semaphore(settings.embedding_concurrency)
 
-    for i in range(0, len(texts), batch_size):
-        batch = texts[i : i + batch_size]
-        embeddings = await loop.run_in_executor(None, _embed_batch_sync, batch, task_type)
-        all_embeddings.extend(embeddings)
+    async def _embed(batch: list[str]) -> list[list[float]]:
+        async with sem:
+            return await loop.run_in_executor(None, _embed_batch_sync, batch, task_type)
 
-    return all_embeddings
+    results = await asyncio.gather(*[_embed(b) for b in batches])
+    return [emb for batch_result in results for emb in batch_result]
 
 
 async def embed_query(text: str) -> list[float]:
@@ -60,5 +83,5 @@ async def embed_query(text: str) -> list[float]:
 
 
 async def generate_text(prompt: str) -> str:
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     return await loop.run_in_executor(None, _generate_sync, prompt)

@@ -88,7 +88,12 @@ class AgenticClassifier(BaseClassifier):
         self._beam_width = beam_width or settings.beam_width
 
     async def classify(self, description: str, top_k: int = 5) -> ClassifyResponse:
-        logger.info("agentic | query=%r top_k=%d beam_width=%d", description, top_k, self._beam_width)
+        logger.info(
+            "agentic | query=%r top_k=%d beam_width=%d",
+            description,
+            top_k,
+            self._beam_width,
+        )
         beam_steps: list[dict] = []
 
         # Step 1: chapter selection
@@ -107,7 +112,13 @@ class AgenticClassifier(BaseClassifier):
         )
         selected_ch_codes = _parse_str_list(response)
         logger.info("agentic | selected chapters: %s", selected_ch_codes)
-        beam_steps.append({"step": "chapter_selection", "selected": selected_ch_codes, "llm_response": response})
+        beam_steps.append(
+            {
+                "step": "chapter_selection",
+                "selected": selected_ch_codes,
+                "llm_response": response,
+            }
+        )
 
         # Collect heading nodes for selected chapters
         heading_nodes: list[HTSNode] = []
@@ -119,17 +130,23 @@ class AgenticClassifier(BaseClassifier):
             for _, nodes in sorted_chapters[: self._beam_width]:
                 heading_nodes.extend(nodes)
 
-        beam: list[HTSNode] = _bm25_prefilter(description, heading_nodes, _MAX_CANDIDATES)
+        beam: list[HTSNode] = _bm25_prefilter(
+            description, heading_nodes, _MAX_CANDIDATES
+        )
 
         # Step 2+: beam search
         for depth in range(12):
             non_leaves = [n for n in beam if n.children]
             if not non_leaves:
-                logger.info("agentic | depth=%d all beam nodes are leaves, stopping", depth)
+                logger.info(
+                    "agentic | depth=%d all beam nodes are leaves, stopping", depth
+                )
                 break
 
             candidates = _bm25_prefilter(description, beam, _MAX_CANDIDATES)
-            options = "\n".join(f"{i+1}. {_format_node(n)}" for i, n in enumerate(candidates))
+            options = "\n".join(
+                f"{i + 1}. {_format_node(n)}" for i, n in enumerate(candidates)
+            )
             response = await generate_text(
                 _SELECT_PROMPT.format(
                     description=description,
@@ -144,12 +161,14 @@ class AgenticClassifier(BaseClassifier):
 
             selected_descs = [_format_node(n) for n in selected]
             logger.info("agentic | depth=%d selected: %s", depth, selected_descs)
-            beam_steps.append({
-                "step": f"depth_{depth}",
-                "candidates_count": len(candidates),
-                "selected": selected_descs,
-                "llm_response": response,
-            })
+            beam_steps.append(
+                {
+                    "step": f"depth_{depth}",
+                    "candidates_count": len(candidates),
+                    "selected": selected_descs,
+                    "llm_response": response,
+                }
+            )
 
             next_beam: list[HTSNode] = []
             for node in selected:
@@ -164,16 +183,22 @@ class AgenticClassifier(BaseClassifier):
             beam = next_beam
 
         # Final ranking
-        final_candidates = _bm25_prefilter(description, beam, max(top_k * 2, _MAX_CANDIDATES))
+        final_candidates = _bm25_prefilter(
+            description, beam, max(top_k * 2, _MAX_CANDIDATES)
+        )
         if len(final_candidates) > top_k:
             options = "\n".join(
-                f"{i+1}. {_format_node(n)}" for i, n in enumerate(final_candidates)
+                f"{i + 1}. {_format_node(n)}" for i, n in enumerate(final_candidates)
             )
             response = await generate_text(
                 _SELECT_PROMPT.format(description=description, n=top_k, options=options)
             )
             indices = _parse_int_list(response)
-            final = [final_candidates[i - 1] for i in indices if 0 < i <= len(final_candidates)]
+            final = [
+                final_candidates[i - 1]
+                for i in indices
+                if 0 < i <= len(final_candidates)
+            ]
             if not final:
                 final = final_candidates[:top_k]
         else:
@@ -182,7 +207,9 @@ class AgenticClassifier(BaseClassifier):
 
         final_descs = [_format_node(n) for n in final]
         logger.info("agentic | final results: %s", final_descs)
-        beam_steps.append({"step": "final_ranking", "selected": final_descs, "llm_response": response})
+        beam_steps.append(
+            {"step": "final_ranking", "selected": final_descs, "llm_response": response}
+        )
 
         return ClassifyResponse(
             results=[

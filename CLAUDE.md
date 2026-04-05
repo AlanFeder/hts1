@@ -6,8 +6,8 @@ Backend only (FastAPI). Frontend is a separate project.
 
 ## Stack
 - Python 3.11+, FastAPI, uv
-- Vertex AI via `google-cloud-aiplatform` (no API key — uses application default credentials)
-- Generation model: `gemini-2.0-flash-lite`
+- Vertex AI via `google-genai` SDK (no API key — uses application default credentials)
+- Generation model: `gemini-2.5-flash-lite` (configurable via `GENERATION_MODEL` in .env)
 - Embedding model: `text-embedding-005`
 - Vector store: ChromaDB (local persistent)
 - BM25: `rank-bm25`
@@ -32,7 +32,8 @@ uv run main.py
 - Pydantic v2 for all schemas
 - All Vertex AI calls are async (run sync SDK in executor via `loop.run_in_executor`)
 - Every classifier returns `intermediates` in the response — log all scores and LLM outputs
-- Use Python `logging` (not `print`) in classifier/service code; `print` is OK in scripts
+- Use `loguru` (`from loguru import logger`) in all classifier/service code; `print` is OK in scripts
+- `embed_texts()` handles batching internally (dynamic char-based, 60k chars/batch) and fires batches concurrently — do not manually batch calls to it
 
 ## Data flow
 ```

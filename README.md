@@ -51,6 +51,11 @@ GET /health
 ```
 GOOGLE_CLOUD_PROJECT=your-project-id
 GOOGLE_CLOUD_LOCATION=us-central1
+
+# Optional tuning
+GENERATION_MODEL=gemini-2.5-flash-lite     # default
+EMBEDDING_MODEL=text-embedding-005         # default
+EMBEDDING_CONCURRENCY=8                    # concurrent embedding batches (default 8)
 ```
 
 ### Install
@@ -58,15 +63,17 @@ GOOGLE_CLOUD_LOCATION=us-central1
 uv sync
 ```
 
-### Ingest HTS data (one-time, ~30-60 min)
+### Ingest HTS data (one-time, ~2 min)
 ```bash
 # Test first with a small slice
-uv run scripts/ingest.py --limit 100
-uv run scripts/ingest.py --chapters 84,85  # electronics chapters
+uv run scripts/ingest.py --chapters 84,85  # electronics chapters (~3,500 entries)
+uv run scripts/ingest.py --limit 100       # first 100 entries only
 
-# Full ingest
+# Full ingest (29,807 entries, ~2 min)
 uv run scripts/ingest.py
 ```
+
+Embeddings are cached in `data/chroma/`. Re-run only if the HTS data is updated (delete `data/chroma/` to force re-embedding).
 
 ### Run the server
 ```bash

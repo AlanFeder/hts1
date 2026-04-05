@@ -34,29 +34,48 @@ class RerankClassifier(BaseClassifier):
     Combines the recall of semantic search with the precision of LLM reasoning.
     """
 
-    def __init__(self, vector_store: VectorStore, candidate_pool: int = _CANDIDATE_POOL) -> None:
+    def __init__(
+        self, vector_store: VectorStore, candidate_pool: int = _CANDIDATE_POOL
+    ) -> None:
         self._store = vector_store
         self._candidate_pool = candidate_pool
 
     async def classify(self, description: str, top_k: int = 5) -> ClassifyResponse:
-        logger.info("rerank | query=%r top_k=%d candidate_pool=%d", description, top_k, self._candidate_pool)
+        logger.info(
+            "rerank | query=%r top_k=%d candidate_pool=%d",
+            description,
+            top_k,
+            self._candidate_pool,
+        )
 
         # Step 1: embedding retrieval
         embedding = await embed_query(description)
         candidates = self._store.query(embedding, top_k=self._candidate_pool)
 
-        logger.info("rerank | retrieved %d candidates from vector store", len(candidates))
+        logger.info(
+            "rerank | retrieved %d candidates from vector store", len(candidates)
+        )
         for c in candidates:
-            logger.debug("rerank | initial score=%.4f hts=%s desc=%r", c["score"], c["hts_code"], c["description"])
+            logger.debug(
+                "rerank | initial score=%.4f hts=%s desc=%r",
+                c["score"],
+                c["hts_code"],
+                c["description"],
+            )
 
         initial_ranking = [
-            {"rank": i + 1, "hts_code": c["hts_code"], "description": c["description"], "score": c["score"]}
+            {
+                "rank": i + 1,
+                "hts_code": c["hts_code"],
+                "description": c["description"],
+                "score": c["score"],
+            }
             for i, c in enumerate(candidates)
         ]
 
         # Step 2: LLM reranking
         options = "\n".join(
-            f"{i+1}. [{c['hts_code']}] {c['description']} (path: {' > '.join(c['path'][-2:])})"
+            f"{i + 1}. [{c['hts_code']}] {c['description']} (path: {' > '.join(c['path'][-2:])})"
             for i, c in enumerate(candidates)
         )
         response = await generate_text(
@@ -75,7 +94,9 @@ class RerankClassifier(BaseClassifier):
             try:
                 reranked_indices = [int(x) for x in json.loads(match.group())]
             except (json.JSONDecodeError, ValueError):
-                logger.warning("rerank | failed to parse LLM reranking response, using original order")
+                logger.warning(
+                    "rerank | failed to parse LLM reranking response, using original order"
+                )
 
         # Fall back to original order if parsing failed or incomplete
         seen = set(reranked_indices)
@@ -84,9 +105,7 @@ class RerankClassifier(BaseClassifier):
                 reranked_indices.append(i)
 
         reranked = [
-            candidates[i - 1]
-            for i in reranked_indices
-            if 0 < i <= len(candidates)
+            candidates[i - 1] for i in reranked_indices if 0 < i <= len(candidates)
         ][:top_k]
 
         logger.info("rerank | final order: %s", [r["hts_code"] for r in reranked])
@@ -109,7 +128,12 @@ class RerankClassifier(BaseClassifier):
                 "initial_ranking": initial_ranking,
                 "llm_raw_response": response,
                 "reranked_ranking": [
-                    {"rank": i + 1, "hts_code": r["hts_code"], "description": r["description"], "original_score": r["score"]}
+                    {
+                        "rank": i + 1,
+                        "hts_code": r["hts_code"],
+                        "description": r["description"],
+                        "original_score": r["score"],
+                    }
                     for i, r in enumerate(reranked)
                 ],
             },

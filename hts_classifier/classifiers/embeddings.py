@@ -16,21 +16,29 @@ class EmbeddingsClassifier(BaseClassifier):
 
         embedding = await embed_query(description)
         norm = float(np.linalg.norm(embedding))
-        logger.debug("embeddings | query embedding norm=%.4f dim=%d", norm, len(embedding))
+        logger.debug(
+            "embeddings | query embedding norm=%.4f dim=%d", norm, len(embedding)
+        )
 
         results = self._store.query(embedding, top_k=top_k)
 
         for r in results:
             logger.info(
                 "embeddings | score=%.4f hts=%s desc=%r",
-                r["score"], r["hts_code"], r["description"],
+                r["score"],
+                r["hts_code"],
+                r["description"],
             )
 
         intermediates = {
             "query_embedding_norm": norm,
             "embedding_dim": len(embedding),
             "raw_scores": [
-                {"hts_code": r["hts_code"], "description": r["description"], "score": r["score"]}
+                {
+                    "hts_code": r["hts_code"],
+                    "description": r["description"],
+                    "score": r["score"],
+                }
                 for r in results
             ],
         }
