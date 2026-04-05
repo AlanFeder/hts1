@@ -10,14 +10,22 @@ interface Props {
 
 const METHODS: Method[] = ["embeddings", "gar", "rerank", "agentic"];
 
-const METHOD_DESCRIPTIONS: Record<Method, string> = {
+const METHOD_SHORT: Record<Method, string> = {
+  embeddings: "Vector similarity search",
+  gar: "Keyword expansion + BM25",
+  rerank: "Retrieve, then re-rank",
+  agentic: "Tree traversal with LLM",
+};
+
+const METHOD_TOOLTIP: Record<Method, string> = {
   embeddings:
-    "Semantic vector search using pre-computed embeddings. Fast, no LLM call.",
-  gar: "LLM generates alternative search phrases, then BM25 keyword scoring.",
+    "Converts your description into a numeric vector using Google's text-embedding-005 model, then finds the closest HTS entries by cosine similarity in a pre-built ChromaDB index.\n\nNo LLM call is made — this is the fastest and cheapest method. Results are best when your description uses trade-style language similar to HTS text. Adjust Path Weight (0–1) to blend leaf-description vs. full-path embeddings.",
+  gar:
+    "Sends your description to Gemini and asks it to generate 5 alternative HTS-style search phrases (e.g. \"iPhone\" → \"telephone sets for cellular networks\"). All phrases are combined and scored against HTS entries using BM25 keyword matching.\n\nBest when your description uses consumer or colloquial language that wouldn't appear verbatim in HTS text. One LLM call; moderate cost.",
   rerank:
-    "Semantic retrieval followed by LLM reranking for precision. 1 LLM call.",
+    "First retrieves a broad pool of candidates (default: 20) via embedding similarity, then sends the full list to Gemini and asks it to re-rank them by relevance to your description.\n\nCombines the recall strength of vector search with the reasoning power of an LLM. The best single-call option for precision. One embedding call + one LLM call.",
   agentic:
-    "Layer-by-layer HTS tree traversal with LLM explore/finalize decisions. Multiple LLM calls.",
+    "Navigates the HTS hierarchy layer by layer: the LLM first picks which chapters to explore, then at each depth decides which nodes to explore further vs. finalize as results. Builds a complete audit trail of every branch considered.\n\nMost expensive and slowest (4–8 LLM calls, 10–30 seconds), but most interpretable. Use Beam Width to control how many branches are explored at each step.",
 };
 
 export default function ClassifyForm({ onSubmit, loading, defaultDescription = "" }: Props) {
@@ -80,13 +88,36 @@ export default function ClassifyForm({ onSubmit, loading, defaultDescription = "
                 <span
                   className={`w-2 h-2 rounded-full mb-2 ${active ? meta.dot : "bg-slate-300"}`}
                 />
-                <span
-                  className={`text-sm font-semibold ${active ? meta.color : "text-slate-700"}`}
-                >
-                  {meta.label}
-                </span>
+                <div className="flex items-center gap-1 w-full">
+                  <span
+                    className={`text-sm font-semibold ${active ? meta.color : "text-slate-700"}`}
+                  >
+                    {meta.label}
+                  </span>
+                  {/* Info icon with hover tooltip */}
+                  <span
+                    className="relative ml-auto flex-shrink-0 group"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <svg
+                      className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 cursor-help"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle cx="12" cy="12" r="10" strokeWidth="2" />
+                      <path strokeLinecap="round" strokeWidth="2" d="M12 8v.01M12 12v4" />
+                    </svg>
+                    <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 hidden group-hover:block w-72">
+                      <div className="bg-slate-900 text-slate-100 text-xs rounded-lg shadow-xl p-3 leading-relaxed whitespace-pre-line">
+                        {METHOD_TOOLTIP[m]}
+                      </div>
+                      <div className="w-2 h-2 bg-slate-900 rotate-45 mx-auto -mt-1" />
+                    </div>
+                  </span>
+                </div>
                 <span className="text-xs text-slate-400 mt-0.5 leading-tight">
-                  {METHOD_DESCRIPTIONS[m]}
+                  {METHOD_SHORT[m]}
                 </span>
               </button>
             );
