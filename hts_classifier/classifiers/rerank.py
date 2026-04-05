@@ -88,7 +88,9 @@ class RerankClassifier(BaseClassifier):
             )
         )
         response = rerank_result.text
-        logger.debug(f"rerank | LLM rerank response: {response} tokens={rerank_result.input_tokens}+{rerank_result.output_tokens} cost=${rerank_result.cost_usd:.6f}")
+        logger.debug(
+            f"rerank | LLM rerank response: {response} tokens={rerank_result.input_tokens}+{rerank_result.output_tokens} cost=${rerank_result.cost_usd:.6f}"
+        )
 
         # Parse reranked order
         reranked_indices: list[int] = []

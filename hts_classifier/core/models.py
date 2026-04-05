@@ -7,8 +7,12 @@ class ClassifyRequest(BaseModel):
     description: str
     method: Literal["embeddings", "gar", "agentic", "rerank"] = "embeddings"
     top_k: int = 5
-    path_weight: float | None = None  # embeddings only: 0.0=leaf-only, 1.0=path-only, None=avg
-    candidate_pool: int | None = None  # rerank only: retrieval pool size before LLM rerank
+    path_weight: float | None = (
+        None  # embeddings only: 0.0=leaf-only, 1.0=path-only, None=avg
+    )
+    candidate_pool: int | None = (
+        None  # rerank only: retrieval pool size before LLM rerank
+    )
     beam_width: int | None = None  # agentic only: candidates kept at each tree level
 
 

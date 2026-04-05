@@ -38,7 +38,9 @@ class GARClassifier(BaseClassifier):
 
         result = await generate_text(_PROMPT.format(description=description))
         response = result.text
-        logger.debug(f"gar | raw LLM response: {response} tokens={result.input_tokens}+{result.output_tokens} cost=${result.cost_usd:.6f}")
+        logger.debug(
+            f"gar | raw LLM response: {response} tokens={result.input_tokens}+{result.output_tokens} cost=${result.cost_usd:.6f}"
+        )
 
         expanded_terms: list[str] = [description]
         match = re.search(r"\[.*?\]", response, re.DOTALL)
