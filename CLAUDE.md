@@ -1,10 +1,12 @@
 # CLAUDE.md — HTS Classifier
 
 ## Project overview
-AI-powered backend to classify shipment descriptions into HTS (Harmonized Tariff Schedule) codes.
-Backend only (FastAPI). Frontend is a separate project.
+AI-powered tool to classify shipment descriptions into HTS (Harmonized Tariff Schedule) codes.
+Python/FastAPI backend + React/Vite frontend.
 
 ## Stack
+
+**Backend**
 - Python 3.11+, FastAPI, uv
 - Vertex AI via `google-genai` SDK (no API key — uses application default credentials)
 - Generation model: `gemini-2.5-flash-lite` (configurable via `GENERATION_MODEL` in .env)
@@ -12,6 +14,11 @@ Backend only (FastAPI). Frontend is a separate project.
 - Vector store: ChromaDB (local persistent, 3 collections)
 - BM25: `rank-bm25` (used only in GAR classifier)
 - GCP project: `project-misc-1`, region: `us-central1`
+
+**Frontend** (see `docs/frontend.md` for full details)
+- React 18, Vite, TypeScript (strict)
+- Tailwind CSS with custom navy/gold palette
+- No external state library — plain `useState`
 
 ## Running the project
 
@@ -23,8 +30,11 @@ uv run scripts/ingest.py
 uv run scripts/ingest.py --limit 100
 uv run scripts/ingest.py --chapters 84,85
 
-# Start the server
+# Start the backend (port 8000)
 uv run main.py
+
+# Start the frontend (port 5173, separate terminal)
+cd frontend && npm run dev
 ```
 
 ## Key conventions
@@ -82,6 +92,7 @@ Every response includes:
 - `method`: which classifier was used
 - `query`: original description
 - `cost_usd`: approximate Vertex AI cost (generation from token counts, embedding from char count)
+- `elapsed_ms`: wall-clock time for the classify call in milliseconds (server-side)
 - `intermediates`: all intermediate scores and LLM outputs
 
 ## Adding a new classifier
@@ -94,10 +105,10 @@ Every response includes:
 ## File structure
 ```
 hts_classifier/
-├── app.py                      FastAPI app, lifespan startup, classifier wiring
+├── app.py                      FastAPI app, lifespan startup, classifier wiring, CORS
 ├── core/
 │   ├── config.py               Settings (pydantic-settings, reads .env)
-│   └── models.py               ClassifyRequest / ClassifyResponse / HTSResult
+│   └── models.py               ClassifyRequest / ClassifyResponse / HTSResult (+ elapsed_ms)
 ├── data/
 │   ├── loader.py               fetch_hts_data() — downloads + caches raw JSON
 │   └── processor.py            build_tree_and_flat(), load_or_process()
@@ -111,11 +122,32 @@ hts_classifier/
 │   ├── agentic.py              Method 3: explore/finalize tree traversal
 │   └── rerank.py               Method 4: embeddings retrieval + LLM rerank
 └── api/routes/
-    ├── classify.py             POST /classify (warns on wrong method-specific params)
+    ├── classify.py             POST /classify — times request, sets elapsed_ms
     └── health.py               GET /health
 scripts/
 └── ingest.py                   Ingestion: download, embed → 3 ChromaDB collections (resumable)
+frontend/
+├── index.html
+├── vite.config.ts              Dev proxy: /classify + /health → localhost:8000
+├── tailwind.config.js          Custom navy/gold palette, Inter + JetBrains Mono fonts
+└── src/
+    ├── App.tsx                 Two-tab shell (Classify / Compare Methods)
+    ├── types.ts                TypeScript types + METHOD_META color constants
+    ├── api.ts                  fetch wrapper for POST /classify
+    └── components/
+        ├── Header.tsx          Navy header, USITC branding, tab nav
+        ├── ClassifyForm.tsx    Description input, method cards, advanced params
+        ├── ResultsTable.tsx    HTS results table (full + compact variants)
+        ├── SingleView.tsx      Single-method classify flow
+        ├── CompareView.tsx     Parallel four-method comparison
+        └── intermediates/      Per-method internals panels
+            ├── IntermediatesPanel.tsx
+            ├── EmbeddingsIntermediates.tsx
+            ├── GarIntermediates.tsx
+            ├── RerankIntermediates.tsx
+            └── AgenticIntermediates.tsx
 docs/
+├── frontend.md                 Frontend architecture, components, design system
 ├── mechanisms.md               How each classifier works + API reference
 ├── agentic_search.md           Agentic classifier design notes
 ├── hts_json_processing.md      HTS JSON structure and path-building algorithm
@@ -123,11 +155,17 @@ docs/
 ```
 
 ## Known issues / gotchas
+
+**Backend**
 - `onnxruntime` 1.20+ dropped Intel Mac (x86_64) wheels; pinned to `<1.20` via `[tool.uv] override-dependencies`
 - Vertex AI embedding API limits: 250 texts/request, 20k tokens/request. `embed_texts()` handles both.
 - Vertex AI rate limits (429) can occur during full ingest — just re-run, ingest resumes from where it left off.
 - `genai.Client` is not thread-safe when shared across `run_in_executor` threads — use `threading.local` per thread.
 - Agentic classifier: chapter selection is the critical gate — if the correct chapter isn't selected, it's missed. Use `beam_width=5` for better coverage at the cost of more LLM calls.
+
+**Frontend**
+- CORS is restricted to `localhost:5173` and `localhost:4173` — update `app.py` if deploying to a real origin.
+- The Compare view fires all 4 methods simultaneously; the agentic method can take 10–30 seconds and will hold the card in a loading state while others have already resolved.
 
 ## Working with Alan
 - Keep responses concise — no trailing summaries, no restating what was just done

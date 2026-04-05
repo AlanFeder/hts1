@@ -1,0 +1,251 @@
+# Frontend
+
+A React single-page application for interacting with the HTS Classifier API. Built with Vite, TypeScript, and Tailwind CSS.
+
+## Running
+
+```bash
+# Backend must be running first (port 8000)
+uv run main.py
+
+# Start the frontend (port 5173)
+cd frontend
+npm install   # first time only
+npm run dev
+```
+
+Production build: `npm run build` → `frontend/dist/`
+
+---
+
+## Design
+
+**Visual language:** Deep navy header evoking a federal agency context, white content cards on a slate background, gold accent for highlighting. Monospace fonts for HTS codes and scores. No decorative clutter.
+
+**Fonts:**
+- Inter (UI text, labels)
+- JetBrains Mono (HTS codes, scores, raw LLM output)
+
+**Color system (Tailwind extensions):**
+
+| Token | Role |
+|---|---|
+| `navy-*` | Header, primary buttons, HTS code badges |
+| `gold-*` | Accent highlight (cost bars, agentic final step) |
+| `blue-*` | Embeddings method, score bars, focus rings |
+| `emerald-*` | GAR method, BM25 bars, finalized nodes |
+| `purple-*` | Rerank method, reranked ranking cards |
+| `amber-*` | Agentic method, final ranking step |
+
+Each of the four classification methods has a consistent color identity used across method selectors, result cards, bars, and intermediates panels.
+
+---
+
+## File Structure
+
+```
+frontend/
+├── index.html                    Entry HTML (font imports, #root)
+├── package.json
+├── vite.config.ts                Dev proxy: /classify + /health → localhost:8000
+├── tsconfig.json
+├── tailwind.config.js            Custom colors + fonts
+├── postcss.config.js
+└── src/
+    ├── main.tsx                  React root mount
+    ├── index.css                 Tailwind directives + shared component classes
+    ├── App.tsx                   Two-tab shell (Classify / Compare Methods)
+    ├── types.ts                  All TypeScript types + METHOD_META constants
+    ├── api.ts                    fetch wrapper for POST /classify
+    └── components/
+        ├── Header.tsx            Navy header bar + tab navigation
+        ├── ClassifyForm.tsx      Description input, method selector, advanced params
+        ├── ResultsTable.tsx      HTS results table (full + compact variants)
+        ├── SingleView.tsx        Single-method classify flow
+        ├── CompareView.tsx       Four-method parallel comparison
+        └── intermediates/
+            ├── IntermediatesPanel.tsx     Router — dispatches to method-specific panel
+            ├── EmbeddingsIntermediates.tsx
+            ├── GarIntermediates.tsx
+            ├── RerankIntermediates.tsx
+            └── AgenticIntermediates.tsx
+```
+
+---
+
+## Tabs
+
+### Classify (Single Method)
+
+Three-step flow:
+
+1. **Form** (`ClassifyForm`) — description textarea, method selector, advanced params, submit
+2. **Results** (`ResultsTable`) — ranked HTS codes with scores, path, tariff rate
+3. **Method Internals** (`IntermediatesPanel`) — method-specific debug panel
+
+#### Method Selector
+
+Four cards, one per method. Each shows:
+- Method color dot
+- Method label
+- One-sentence description of how it works
+
+Selecting a method reveals its advanced parameter (if any):
+- `embeddings` → `path_weight` (0.0–1.0 or blank for avg collection)
+- `rerank` → `candidate_pool` (default 20)
+- `agentic` → `beam_width` (default 3)
+
+#### Results Table
+
+| Column | Notes |
+|---|---|
+| # | 1-indexed rank |
+| HTS Code | Navy badge, monospace |
+| Description | Full HTS description text |
+| Path | Last 3 ancestors shown as breadcrumb (hidden on small screens) |
+| Score | Horizontal bar + numeric value (0–1) |
+| Tariff | `general_rate` from HTS data |
+
+A meta-chips row above the table shows: method, elapsed time (ms), cost (USD), result count.
+
+---
+
+### Compare Methods
+
+Fires all four classifiers in parallel for a single description, then shows results side-by-side.
+
+#### Summary Section
+
+Appears as soon as any method responds. Shows:
+
+**Performance bars** — one row per method:
+- Elapsed time bar (scaled to slowest method)
+- Cost bar (scaled to most expensive method)
+- Numeric values in monospace
+- Animated pulse while a method is still loading
+
+**Top Result Table** — one row per method showing its #1 result (HTS code + description + score). Placeholder skeletons while loading.
+
+#### Per-Method Cards (2×2 grid)
+
+Each card has:
+- Colored header (method color) showing method name, elapsed time, cost
+- Compact results table (no path breadcrumb, no tariff column)
+- Click the header to expand **Method Internals** inline
+
+---
+
+## Method Internals Panels
+
+### Embeddings
+
+- **Stat boxes**: embedding dimension, query vector norm, blend mode
+- **Cosine similarity bars**: one bar per result, scaled to max score, with HTS code badge + description
+
+### GAR + BM25
+
+- **Expanded terms chips**: original query labeled "orig", LLM-generated terms in alternating colors (blue, emerald, purple, amber, rose, cyan)
+- **BM25 score bars**: normalized scores, emerald color
+- **Raw LLM response toggle**: collapsible, dark code block
+
+### Rerank
+
+- **Candidate pool stat box**
+- **Side-by-side ranking comparison**:
+  - Left: initial embedding ranking (score shown)
+  - Right: after LLM rerank — shows rank movement indicator (`▲N` green / `▼N` red)
+- **Raw LLM response toggle**
+
+### Agentic
+
+Collapsible beam trace — one accordion row per step:
+
+| Step type | Indicator | Content |
+|---|---|---|
+| `chapter_selection` | Navy dot | Selected chapter codes as pills |
+| `depth_N` | Slate dot | Explored nodes (blue) + Finalized nodes (emerald) in separate lists |
+| `final_ranking` | Gold dot | Final selected node descriptions |
+
+Each row header shows a quick summary (chapters selected / nodes explored+finalized count) without opening it. Raw LLM response collapsible inside each row.
+
+The first step is open by default.
+
+---
+
+## State Management
+
+No external state library — plain `useState` throughout.
+
+**SingleView state machine:**
+```
+idle → loading → success | error
+```
+
+**CompareView state per method:**
+```
+idle → loading(startedAt) → success(data, clientMs) | error(message)
+```
+
+`clientMs` is measured with `performance.now()` client-side for latency display before server `elapsed_ms` arrives. Once the response arrives, server `elapsed_ms` (from the backend) is used preferentially.
+
+---
+
+## API Client
+
+`src/api.ts` — thin `fetch` wrapper. No caching, no retry. Throws on non-2xx.
+
+The Vite dev proxy forwards `/classify` and `/health` to `http://localhost:8000`, so no CORS header is needed during development. In production, the backend must serve CORS headers (already configured) or the frontend must be served from the same origin.
+
+---
+
+## Backend Changes Required by This Frontend
+
+Two small additions were made to the Python backend when building this frontend:
+
+### 1. `elapsed_ms` field
+
+**File:** `hts_classifier/core/models.py`
+
+```python
+class ClassifyResponse(BaseModel):
+    ...
+    elapsed_ms: float | None = None   # ← added
+    ...
+```
+
+**File:** `hts_classifier/api/routes/classify.py`
+
+```python
+t0 = time.perf_counter()
+response = await classifier.classify(...)
+response.elapsed_ms = (time.perf_counter() - t0) * 1000
+return response
+```
+
+Wall-clock time in milliseconds for the full classify call, measured server-side.
+
+### 2. CORS middleware
+
+**File:** `hts_classifier/app.py`
+
+```python
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://localhost:4173"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+```
+
+Allows the Vite dev server (5173) and preview server (4173) to call the API directly. Without this, browser requests would be blocked by CORS policy.
+
+---
+
+## Adding a New Method to the Frontend
+
+1. **`src/types.ts`** — Add the method literal to `Method`, add an entry to `METHOD_META` with `label`, `color`, `bg`, `border`, `dot` Tailwind classes, and add a typed `*Intermediates` interface.
+2. **`src/components/ClassifyForm.tsx`** — Add the method to `METHODS` and `METHOD_DESCRIPTIONS`. Add any method-specific param input in the advanced params block.
+3. **`src/components/intermediates/`** — Create `YourMethodIntermediates.tsx`.
+4. **`src/components/intermediates/IntermediatesPanel.tsx`** — Add a `case` for the new method.
+
+The CompareView and ResultsTable require no changes — they iterate over `METHODS` dynamically.

@@ -167,8 +167,12 @@ Warnings are logged (but not errors) if method-specific parameters are sent with
   "method": "embeddings",
   "query": "16 inch MacBook Pro",
   "cost_usd": 0.0000023,
+  "elapsed_ms": 312.4,
   "intermediates": { ... }
 }
+```
+
+`elapsed_ms` is wall-clock time in milliseconds measured server-side around the `classifier.classify()` call (excludes FastAPI routing and serialization overhead).
 ```
 
 ## Comparison

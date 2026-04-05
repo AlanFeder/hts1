@@ -2,15 +2,16 @@
 
 Last updated: 2026-04-05
 
-## Current state: fully implemented, ready to test
+## Current state: backend + frontend complete
 
-### What's done
+### What's done — backend (Python/FastAPI)
 - All 4 classifiers implemented: `embeddings`, `gar`, `agentic`, `rerank`
 - `path_weight` param on embeddings (0.0=leaf-only, 1.0=path-only, null=avg)
 - `candidate_pool` param on rerank (overrides default pool of 20)
 - `beam_width` param on agentic (overrides `BEAM_WIDTH` env var)
 - Warnings logged when method-specific params are sent to wrong method
 - `cost_usd` field on every response — approximate Vertex AI cost for the request
+- `elapsed_ms` field on every response — wall-clock time for the classify call (ms)
 - `generate_text()` returns `GenerateResult(text, input_tokens, output_tokens)` — cost computed from `usage_metadata`
 - Agentic redesigned: explore/finalize loop instead of greedy beam search
   - LLM sees all beam nodes at each depth (embedding-prefiltered to 50 if >50)
@@ -20,12 +21,23 @@ Last updated: 2026-04-05
 - Ingest writes 3 ChromaDB collections: avg, leaf, path
 - Logging clean across all classifiers (f-strings, not printf)
 - Type checks and lint clean (`uv run ty check` and `uv run ruff check` pass)
+- CORS middleware enabled for `localhost:5173` (Vite dev) and `localhost:4173` (Vite preview)
+
+### What's done — frontend (React/Vite)
+- **Classify tab**: single-method flow with form, results table, method internals panel
+- **Compare tab**: all 4 methods run in parallel; summary bars for time + cost; per-method expandable cards
+- Method-specific intermediates panels:
+  - Embeddings: embedding stats, cosine similarity bars
+  - GAR: expanded term chips, BM25 score bars, raw LLM response toggle
+  - Rerank: side-by-side initial vs. reranked with rank movement indicators
+  - Agentic: collapsible beam trace (chapter selection → depth steps → final ranking)
+- Professional government-tech design (navy/gold palette, Inter + JetBrains Mono fonts)
+- TypeScript strict mode, zero type errors
 
 ### Pending
 - Manual testing of all 4 methods on representative queries to compare quality
 - Evaluate best `path_weight` values for embeddings
 - Evaluate agentic accuracy now that explore/finalize redesign is in
-- Frontend (separate project)
 
 ## Ingest details
 
