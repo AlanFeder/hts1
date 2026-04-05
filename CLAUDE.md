@@ -2,9 +2,11 @@
 
 ## Project overview
 AI-powered backend to classify shipment descriptions into HTS (Harmonized Tariff Schedule) codes.
-Backend only (FastAPI). Frontend is a separate project.
+Two server implementations — Python (FastAPI) and Node.js (Fastify) — sharing the same API contract and data files. Frontend is a separate project.
 
 ## Stack
+
+**Python server**
 - Python 3.11+, FastAPI, uv
 - Vertex AI via `google-genai` SDK (no API key — uses application default credentials)
 - Generation model: `gemini-2.5-flash-lite` (configurable via `GENERATION_MODEL` in .env)
@@ -13,18 +15,25 @@ Backend only (FastAPI). Frontend is a separate project.
 - BM25: `rank-bm25` (used only in GAR classifier)
 - GCP project: `project-misc-1`, region: `us-central1`
 
+**Node.js server**
+- Node.js 20+, Fastify v5, TypeScript, tsx
+- Vertex AI via `@google/genai` SDK with `vertexai: true` (same ADC, same models)
+- Vector store: in-memory `Float32Array` loaded from binary export files (no ChromaDB server needed)
+- BM25: self-contained Okapi implementation in `src/classifiers/gar.ts`
+- Swagger UI at `/docs` via `@fastify/swagger` + `@fastify/swagger-ui`
+- Validation: Zod
+
 ## Running the project
 
 ```bash
-# First time only: ingest HTS data (resumes if interrupted)
-uv run scripts/ingest.py
-
-# Test ingest on a small slice first
-uv run scripts/ingest.py --limit 100
-uv run scripts/ingest.py --chapters 84,85
-
-# Start the server
+# Python server (port 8000)
+uv run scripts/ingest.py        # first time: ingest HTS data (~10–20 min, resumable)
 uv run main.py
+
+# Node.js server (port 3000)
+npm install                      # first time
+uv run scripts/export_embeddings.py   # first time: ChromaDB → binary files
+npm run dev
 ```
 
 ## Key conventions
@@ -92,41 +101,73 @@ Every response includes:
 5. Add `candidate_pool` or `beam_width` to `_PARAM_METHODS` in `api/routes/classify.py` if the new method has a method-specific param
 
 ## File structure
+
 ```
-hts_classifier/
-├── app.py                      FastAPI app, lifespan startup, classifier wiring
-├── core/
-│   ├── config.py               Settings (pydantic-settings, reads .env)
-│   └── models.py               ClassifyRequest / ClassifyResponse / HTSResult
+hts_classifier/           Python server
+├── main.py
+├── hts_classifier/
+│   ├── app.py                  FastAPI app, lifespan startup, classifier wiring
+│   ├── core/
+│   │   ├── config.py           Settings (pydantic-settings, reads .env)
+│   │   └── models.py           ClassifyRequest / ClassifyResponse / HTSResult
+│   ├── data/
+│   │   ├── loader.py           fetch_hts_data() — downloads + caches raw JSON
+│   │   └── processor.py        build_tree_and_flat(), load_or_process()
+│   ├── services/
+│   │   ├── vertex.py           embed_texts(), embed_query(), generate_text() → GenerateResult
+│   │   └── vector_store.py     ChromaDB wrapper (COLLECTION_AVG/LEAF/PATH constants)
+│   ├── classifiers/
+│   │   ├── base.py             BaseClassifier ABC
+│   │   ├── embeddings.py       Method 1: cosine similarity, supports path_weight
+│   │   ├── gar.py              Method 2: LLM term expansion + BM25
+│   │   ├── agentic.py          Method 3: explore/finalize tree traversal
+│   │   └── rerank.py           Method 4: embeddings retrieval + LLM rerank
+│   └── api/routes/
+│       ├── classify.py         POST /classify
+│       └── health.py           GET /health
+
+src/                      Node.js server
+├── index.ts                    Fastify server entry point
+├── config.ts                   Env vars
+├── types.ts                    Zod schema + TS interfaces
 ├── data/
-│   ├── loader.py               fetch_hts_data() — downloads + caches raw JSON
-│   └── processor.py            build_tree_and_flat(), load_or_process()
+│   └── processor.ts            HTS tree builder + flat entry loader
 ├── services/
-│   ├── vertex.py               embed_texts(), embed_query(), generate_text() → GenerateResult
-│   └── vector_store.py         ChromaDB wrapper (COLLECTION_AVG/LEAF/PATH constants)
-├── classifiers/
-│   ├── base.py                 BaseClassifier ABC
-│   ├── embeddings.py           Method 1: cosine similarity, supports path_weight
-│   ├── gar.py                  Method 2: LLM term expansion + BM25
-│   ├── agentic.py              Method 3: explore/finalize tree traversal
-│   └── rerank.py               Method 4: embeddings retrieval + LLM rerank
-└── api/routes/
-    ├── classify.py             POST /classify (warns on wrong method-specific params)
-    └── health.py               GET /health
+│   ├── vertex.ts               embedTexts, embedQuery, generateText, embedCost
+│   └── vectorStore.ts          In-memory Float32Array store (pre-normalised, min-heap top-k)
+└── classifiers/
+    ├── embeddings.ts
+    ├── gar.ts                  Includes self-contained BM25 Okapi class
+    ├── agentic.ts
+    └── rerank.ts
+
 scripts/
-└── ingest.py                   Ingestion: download, embed → 3 ChromaDB collections (resumable)
+├── ingest.py                   Python: download + embed → ChromaDB (resumable)
+└── export_embeddings.py        Python: ChromaDB → binary files for Node.js
+
 docs/
 ├── mechanisms.md               How each classifier works + API reference
 ├── agentic_search.md           Agentic classifier design notes
 ├── hts_json_processing.md      HTS JSON structure and path-building algorithm
+├── node_server.md              Node.js server setup and architecture
 └── status.md                   Current implementation status and curl examples
 ```
 
 ## Known issues / gotchas
+
+**Python**
 - `onnxruntime` 1.20+ dropped Intel Mac (x86_64) wheels; pinned to `<1.20` via `[tool.uv] override-dependencies`
 - Vertex AI embedding API limits: 250 texts/request, 20k tokens/request. `embed_texts()` handles both.
 - Vertex AI rate limits (429) can occur during full ingest — just re-run, ingest resumes from where it left off.
 - `genai.Client` is not thread-safe when shared across `run_in_executor` threads — use `threading.local` per thread.
+
+**Node.js**
+- `@fastify/swagger` requires Fastify v5 — don't downgrade Fastify.
+- Fastify's AJV runs in strict mode by default; `example` in JSON Schema requires `ajv: { customOptions: { strict: false } }`.
+- The Node server loads ~275 MB of `Float32Array` data at startup — startup takes a few seconds.
+- If ChromaDB data changes (re-ingest), re-run `uv run scripts/export_embeddings.py` before restarting Node.
+
+**Both**
 - Agentic classifier: chapter selection is the critical gate — if the correct chapter isn't selected, it's missed. Use `beam_width=5` for better coverage at the cost of more LLM calls.
 
 ## Working with Alan

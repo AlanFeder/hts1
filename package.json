@@ -1,25 +1,25 @@
 {
-  "name": "hts-classifier-ts",
-  "version": "0.1.0",
-  "description": "HTS Classifier — TypeScript/Node.js backend",
-  "type": "module",
-  "scripts": {
-    "dev": "tsx src/index.ts",
-    "build": "tsc",
-    "start": "node dist/index.js"
-  },
-  "dependencies": {
-    "@fastify/swagger": "^9.7.0",
-    "@fastify/swagger-ui": "^5.2.5",
-    "@google/genai": "^1.3.0",
-    "biome": "^0.3.3",
-    "dotenv": "^16.4.5",
-    "fastify": "^5.8.4",
-    "zod": "^3.23.8"
-  },
-  "devDependencies": {
-    "@types/node": "^20.14.0",
-    "tsx": "^4.15.0",
-    "typescript": "^5.5.0"
-  }
+	"name": "hts-classifier-ts",
+	"version": "0.1.0",
+	"description": "HTS Classifier — TypeScript/Node.js backend",
+	"type": "module",
+	"scripts": {
+		"dev": "tsx src/index.ts",
+		"build": "tsc",
+		"start": "node dist/index.js"
+	},
+	"dependencies": {
+		"@fastify/swagger": "^9.7.0",
+		"@fastify/swagger-ui": "^5.2.5",
+		"@google/genai": "^1.3.0",
+		"dotenv": "^16.4.5",
+		"fastify": "^5.8.4",
+		"zod": "^3.23.8"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.4.10",
+		"@types/node": "^20.14.0",
+		"tsx": "^4.15.0",
+		"typescript": "^5.5.0"
+	}
 }

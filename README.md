@@ -21,6 +21,18 @@ Four AI classification methods, selectable per request:
 
 See [docs/mechanisms.md](docs/mechanisms.md) for detailed descriptions.
 
+## Two server implementations
+
+| | Python (FastAPI) | Node.js (Fastify) |
+|---|---|---|
+| Entry point | `uv run main.py` | `npm run dev` |
+| Default port | 8000 | 3000 |
+| Swagger UI | `http://localhost:8000/docs` | `http://localhost:3000/docs` |
+| Vector store | ChromaDB embedded | In-memory `Float32Array` |
+| BM25 | `rank-bm25` | Self-contained Okapi implementation |
+
+Both implementations are feature-identical and share the same `.env`, HTS data files, and API contract. See [docs/node_server.md](docs/node_server.md) for Node.js-specific setup.
+
 ## API
 
 ```
@@ -42,15 +54,15 @@ GET /health
 → { "status": "ok", "indexed_entries": 29807 }
 ```
 
-## Setup
+## Prerequisites
 
-### Prerequisites
-- Python 3.11+
-- `uv`
 - GCP project with Vertex AI enabled
 - Application Default Credentials: `gcloud auth application-default login`
+- **Python server:** Python 3.11+, `uv`
+- **Node.js server:** Node.js 20+, `npm`
 
-### `.env`
+## `.env`
+
 ```
 GOOGLE_CLOUD_PROJECT=your-project-id
 GOOGLE_CLOUD_LOCATION=us-central1
@@ -61,33 +73,37 @@ EMBEDDING_MODEL=text-embedding-005         # default
 BEAM_WIDTH=3                               # agentic classifier beam width (default 3)
 ```
 
-### Install
+## Setup — Python server
+
 ```bash
+# Install dependencies
 uv sync
-```
 
-### Ingest HTS data (one-time, ~10–20 min)
-```bash
-# Test first with a small slice
+# Ingest HTS data (one-time, ~10–20 min) — test with a small slice first
 uv run scripts/ingest.py --chapters 84,85  # electronics chapters (~3,500 entries)
-uv run scripts/ingest.py --limit 100       # first 100 entries only
+uv run scripts/ingest.py                   # full ingest (29,807 entries)
 
-# Full ingest (29,807 entries)
-uv run scripts/ingest.py
-```
-
-Ingest is **resumable** — if it fails (e.g. rate limit), just re-run and it picks up where it left off.
-
-Embeddings are cached in `data/chroma/` across **3 collections**: avg, leaf, and path. To start fresh:
-```bash
-rm -rf data/chroma data/hts_raw.json data/hts_processed.json
-uv run scripts/ingest.py
-```
-
-### Run the server
-```bash
+# Run
 uv run main.py
 ```
+
+Ingest is **resumable** — re-run after a rate-limit error and it picks up where it left off.
+
+## Setup — Node.js server
+
+```bash
+# Install dependencies
+npm install
+
+# One-time export: convert ChromaDB → binary files for in-memory loading
+# (requires Python ingest to have run first)
+uv run scripts/export_embeddings.py
+
+# Run
+npm run dev
+```
+
+See [docs/node_server.md](docs/node_server.md) for full details.
 
 ## Data source
 

@@ -1,5 +1,5 @@
 import { generateText } from "../services/vertex.js";
-import type { HTSEntry, ClassifyResponse } from "../types.js";
+import type { ClassifyResponse, HTSEntry } from "../types.js";
 
 const PROMPT = `You are an expert in HTS (Harmonized Tariff Schedule) tariff classification.
 
@@ -13,123 +13,130 @@ Example: ["smartphones", "mobile phones", "telephone handsets", "wireless commun
 // ─── BM25 Okapi implementation ────────────────────────────────────────────────
 
 function tokenize(text: string): string[] {
-  return text.toLowerCase().split(/\s+/).filter(Boolean);
+	return text.toLowerCase().split(/\s+/).filter(Boolean);
 }
 
 class BM25 {
-  private readonly k1 = 1.5;
-  private readonly b = 0.75;
-  private readonly avgdl: number;
-  private readonly idf = new Map<string, number>();
-  private readonly corpus: string[][];
+	private readonly k1 = 1.5;
+	private readonly b = 0.75;
+	private readonly avgdl: number;
+	private readonly idf = new Map<string, number>();
+	private readonly corpus: string[][];
 
-  constructor(corpus: string[][]) {
-    this.corpus = corpus;
-    this.avgdl = corpus.reduce((s, d) => s + d.length, 0) / (corpus.length || 1);
+	constructor(corpus: string[][]) {
+		this.corpus = corpus;
+		this.avgdl =
+			corpus.reduce((s, d) => s + d.length, 0) / (corpus.length || 1);
 
-    const N = corpus.length;
-    const df = new Map<string, number>();
-    for (const doc of corpus) {
-      for (const term of new Set(doc)) {
-        df.set(term, (df.get(term) ?? 0) + 1);
-      }
-    }
-    for (const [term, freq] of df) {
-      this.idf.set(term, Math.log((N - freq + 0.5) / (freq + 0.5) + 1));
-    }
-  }
+		const N = corpus.length;
+		const df = new Map<string, number>();
+		for (const doc of corpus) {
+			for (const term of new Set(doc)) {
+				df.set(term, (df.get(term) ?? 0) + 1);
+			}
+		}
+		for (const [term, freq] of df) {
+			this.idf.set(term, Math.log((N - freq + 0.5) / (freq + 0.5) + 1));
+		}
+	}
 
-  getScores(query: string[]): Float64Array {
-    const scores = new Float64Array(this.corpus.length);
-    for (let docIdx = 0; docIdx < this.corpus.length; docIdx++) {
-      const doc = this.corpus[docIdx]!;
-      const tf = new Map<string, number>();
-      for (const term of doc) tf.set(term, (tf.get(term) ?? 0) + 1);
-      const dl = doc.length;
+	getScores(query: string[]): Float64Array {
+		const scores = new Float64Array(this.corpus.length);
+		for (let docIdx = 0; docIdx < this.corpus.length; docIdx++) {
+			const doc = this.corpus[docIdx]!;
+			const tf = new Map<string, number>();
+			for (const term of doc) tf.set(term, (tf.get(term) ?? 0) + 1);
+			const dl = doc.length;
 
-      let score = 0;
-      for (const term of query) {
-        const idf = this.idf.get(term) ?? 0;
-        if (idf === 0) continue;
-        const freq = tf.get(term) ?? 0;
-        score += idf * (freq * (this.k1 + 1)) /
-          (freq + this.k1 * (1 - this.b + this.b * dl / this.avgdl));
-      }
-      scores[docIdx] = score;
-    }
-    return scores;
-  }
+			let score = 0;
+			for (const term of query) {
+				const idf = this.idf.get(term) ?? 0;
+				if (idf === 0) continue;
+				const freq = tf.get(term) ?? 0;
+				score +=
+					(idf * (freq * (this.k1 + 1))) /
+					(freq + this.k1 * (1 - this.b + (this.b * dl) / this.avgdl));
+			}
+			scores[docIdx] = score;
+		}
+		return scores;
+	}
 }
 
 // ─── Classifier ───────────────────────────────────────────────────────────────
 
 export class GARClassifier {
-  private bm25: BM25;
+	private bm25: BM25;
 
-  constructor(private entries: HTSEntry[]) {
-    const corpus = entries.map((e) => tokenize(e.path_string));
-    this.bm25 = new BM25(corpus);
-  }
+	constructor(private entries: HTSEntry[]) {
+		const corpus = entries.map((e) => tokenize(e.path_string));
+		this.bm25 = new BM25(corpus);
+	}
 
-  async classify(description: string, topK: number = 5): Promise<ClassifyResponse> {
-    console.info(`gar | query=${JSON.stringify(description)} top_k=${topK}`);
+	async classify(
+		description: string,
+		topK: number = 5,
+	): Promise<ClassifyResponse> {
+		console.info(`gar | query=${JSON.stringify(description)} top_k=${topK}`);
 
-    const result = await generateText(PROMPT.replace("{description}", description));
-    console.debug(
-      `gar | raw LLM response: ${result.text} tokens=${result.inputTokens}+${result.outputTokens} cost=$${result.costUsd.toFixed(6)}`
-    );
+		const result = await generateText(
+			PROMPT.replace("{description}", description),
+		);
+		console.debug(
+			`gar | raw LLM response: ${result.text} tokens=${result.inputTokens}+${result.outputTokens} cost=$${result.costUsd.toFixed(6)}`,
+		);
 
-    const expandedTerms: string[] = [description];
-    const match = result.text.match(/\[[\s\S]*?\]/);
-    if (match) {
-      try {
-        const parsed = JSON.parse(match[0]) as string[];
-        expandedTerms.push(...parsed);
-      } catch {
-        console.warn("gar | failed to parse expanded terms from LLM response");
-      }
-    }
+		const expandedTerms: string[] = [description];
+		const match = result.text.match(/\[[\s\S]*?\]/);
+		if (match) {
+			try {
+				const parsed = JSON.parse(match[0]) as string[];
+				expandedTerms.push(...parsed);
+			} catch {
+				console.warn("gar | failed to parse expanded terms from LLM response");
+			}
+		}
 
-    console.info(`gar | expanded_terms=${JSON.stringify(expandedTerms)}`);
+		console.info(`gar | expanded_terms=${JSON.stringify(expandedTerms)}`);
 
-    const combinedQuery = tokenize(expandedTerms.join(" "));
-    const scores = this.bm25.getScores(combinedQuery);
+		const combinedQuery = tokenize(expandedTerms.join(" "));
+		const scores = this.bm25.getScores(combinedQuery);
 
-    // Top-k indices by descending score
-    const indices = Array.from({ length: this.entries.length }, (_, i) => i)
-      .sort((a, b) => scores[b]! - scores[a]!)
-      .slice(0, topK);
+		// Top-k indices by descending score
+		const indices = Array.from({ length: this.entries.length }, (_, i) => i)
+			.sort((a, b) => scores[b]! - scores[a]!)
+			.slice(0, topK);
 
-    const maxScore = scores[indices[0]!] || 1;
+		const maxScore = scores[indices[0]!] || 1;
 
-    for (const i of indices) {
-      console.info(
-        `gar | bm25_score=${scores[i]!.toFixed(4)} (norm=${(scores[i]! / maxScore).toFixed(4)})` +
-        ` hts=${this.entries[i]!.hts_code} desc=${JSON.stringify(this.entries[i]!.description)}`
-      );
-    }
+		for (const i of indices) {
+			console.info(
+				`gar | bm25_score=${scores[i]!.toFixed(4)} (norm=${(scores[i]! / maxScore).toFixed(4)})` +
+					` hts=${this.entries[i]!.hts_code} desc=${JSON.stringify(this.entries[i]!.description)}`,
+			);
+		}
 
-    return {
-      results: indices.map((i) => ({
-        hts_code: this.entries[i]!.hts_code,
-        description: this.entries[i]!.description,
-        path: this.entries[i]!.path,
-        score: scores[i]! / maxScore,
-        general_rate: this.entries[i]!.general_rate || null,
-      })),
-      method: "gar",
-      query: description,
-      cost_usd: result.costUsd,
-      intermediates: {
-        expanded_terms: expandedTerms,
-        llm_raw_response: result.text,
-        bm25_scores: indices.map((i) => ({
-          hts_code: this.entries[i]!.hts_code,
-          description: this.entries[i]!.description,
-          raw_score: scores[i]!,
-          normalized_score: scores[i]! / maxScore,
-        })),
-      },
-    };
-  }
+		return {
+			results: indices.map((i) => ({
+				hts_code: this.entries[i]!.hts_code,
+				description: this.entries[i]!.description,
+				path: this.entries[i]!.path,
+				score: scores[i]! / maxScore,
+				general_rate: this.entries[i]!.general_rate || null,
+			})),
+			method: "gar",
+			query: description,
+			cost_usd: result.costUsd,
+			intermediates: {
+				expanded_terms: expandedTerms,
+				llm_raw_response: result.text,
+				bm25_scores: indices.map((i) => ({
+					hts_code: this.entries[i]!.hts_code,
+					description: this.entries[i]!.description,
+					raw_score: scores[i]!,
+					normalized_score: scores[i]! / maxScore,
+				})),
+			},
+		};
+	}
 }
