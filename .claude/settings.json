@@ -1,7 +1,11 @@
 {
-  "permissions": {
-    "allow": [
-      "Bash(npx @biomejs/biome check src/)"
-    ]
-  }
+	"permissions": {
+		"allow": [
+			"Bash(npx @biomejs/biome check src/)",
+			"Bash(npx @biomejs/biome check src/ --max-diagnostics=100)",
+			"Bash(npx @biomejs/biome check src/ --write)",
+			"Bash(npx @biomejs/biome check)",
+			"Bash(npx @biomejs/biome check .claude/settings.json --write)"
+		]
+	}
 }

@@ -43,7 +43,7 @@ class BM25 {
 	getScores(query: string[]): Float64Array {
 		const scores = new Float64Array(this.corpus.length);
 		for (let docIdx = 0; docIdx < this.corpus.length; docIdx++) {
-			const doc = this.corpus[docIdx]!;
+			const doc = this.corpus[docIdx] ?? [];
 			const tf = new Map<string, number>();
 			for (const term of doc) tf.set(term, (tf.get(term) ?? 0) + 1);
 			const dl = doc.length;
@@ -100,29 +100,29 @@ export class GARClassifier {
 		console.info(`gar | expanded_terms=${JSON.stringify(expandedTerms)}`);
 
 		const combinedQuery = tokenize(expandedTerms.join(" "));
-		const scores = this.bm25.getScores(combinedQuery);
+		const rawScores = this.bm25.getScores(combinedQuery);
 
-		// Top-k indices by descending score
-		const indices = Array.from({ length: this.entries.length }, (_, i) => i)
-			.sort((a, b) => scores[b]! - scores[a]!)
+		// Pair each entry with its score, sort descending, take top-k
+		const ranked = this.entries
+			.map((entry, i) => ({ entry, score: rawScores[i] ?? 0 }))
+			.sort((a, b) => b.score - a.score)
 			.slice(0, topK);
 
-		const maxScore = scores[indices[0]!] || 1;
+		const maxScore = ranked[0]?.score || 1;
 
-		for (const i of indices) {
+		for (const { entry, score } of ranked) {
 			console.info(
-				`gar | bm25_score=${scores[i]!.toFixed(4)} (norm=${(scores[i]! / maxScore).toFixed(4)})` +
-					` hts=${this.entries[i]!.hts_code} desc=${JSON.stringify(this.entries[i]!.description)}`,
+				`gar | bm25_score=${score.toFixed(4)} (norm=${(score / maxScore).toFixed(4)}) hts=${entry.hts_code} desc=${JSON.stringify(entry.description)}`,
 			);
 		}
 
 		return {
-			results: indices.map((i) => ({
-				hts_code: this.entries[i]!.hts_code,
-				description: this.entries[i]!.description,
-				path: this.entries[i]!.path,
-				score: scores[i]! / maxScore,
-				general_rate: this.entries[i]!.general_rate || null,
+			results: ranked.map(({ entry, score }) => ({
+				hts_code: entry.hts_code,
+				description: entry.description,
+				path: entry.path,
+				score: score / maxScore,
+				general_rate: entry.general_rate || null,
 			})),
 			method: "gar",
 			query: description,
@@ -130,11 +130,11 @@ export class GARClassifier {
 			intermediates: {
 				expanded_terms: expandedTerms,
 				llm_raw_response: result.text,
-				bm25_scores: indices.map((i) => ({
-					hts_code: this.entries[i]!.hts_code,
-					description: this.entries[i]!.description,
-					raw_score: scores[i]!,
-					normalized_score: scores[i]! / maxScore,
+				bm25_scores: ranked.map(({ entry, score }) => ({
+					hts_code: entry.hts_code,
+					description: entry.description,
+					raw_score: score,
+					normalized_score: score / maxScore,
 				})),
 			},
 		};

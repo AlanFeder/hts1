@@ -1,7 +1,7 @@
+import { existsSync } from "node:fs";
 import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
 import Fastify from "fastify";
-import { existsSync } from "fs";
 import { AgenticClassifier } from "./classifiers/agentic.js";
 import { EmbeddingsClassifier } from "./classifiers/embeddings.js";
 import { GARClassifier } from "./classifiers/gar.js";

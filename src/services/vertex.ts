@@ -76,7 +76,7 @@ export async function embedTexts(
 
 export async function embedQuery(text: string): Promise<number[]> {
 	const embeddings = await embedTexts([text], "RETRIEVAL_QUERY");
-	return embeddings[0]!;
+	return embeddings[0] ?? [];
 }
 
 export async function generateText(prompt: string): Promise<GenerateResult> {
@@ -110,9 +110,9 @@ export function cosineSimilarity(a: number[], b: number[]): number {
 		normA = 0,
 		normB = 0;
 	for (let i = 0; i < a.length; i++) {
-		dot += a[i]! * b[i]!;
-		normA += a[i]! * a[i]!;
-		normB += b[i]! * b[i]!;
+		dot += a[i] * b[i];
+		normA += a[i] * a[i];
+		normB += b[i] * b[i];
 	}
 	const denom = Math.sqrt(normA) * Math.sqrt(normB);
 	return denom === 0 ? 0 : dot / denom;

@@ -1,4 +1,4 @@
-import { readFileSync } from "fs";
+import { readFileSync } from "node:fs";
 
 export const COLLECTION_AVG = "avg";
 export const COLLECTION_LEAF = "leaf";
@@ -50,11 +50,11 @@ export class VectorStore {
 		for (let i = 0; i < this.N; i++) {
 			const off = i * this.dim;
 			let norm = 0;
-			for (let j = 0; j < this.dim; j++) norm += this.embeddings[off + j]! ** 2;
+			for (let j = 0; j < this.dim; j++) norm += this.embeddings[off + j] ** 2;
 			norm = Math.sqrt(norm);
 			if (norm > 0) {
 				const inv = 1 / norm;
-				for (let j = 0; j < this.dim; j++) this.embeddings[off + j]! *= inv;
+				for (let j = 0; j < this.dim; j++) this.embeddings[off + j] *= inv;
 			}
 		}
 
@@ -76,7 +76,7 @@ export class VectorStore {
 		qNorm = Math.sqrt(qNorm);
 		const inv = qNorm > 0 ? 1 / qNorm : 0;
 		const q = new Float32Array(this.dim);
-		for (let j = 0; j < this.dim; j++) q[j] = embedding[j]! * inv;
+		for (let j = 0; j < this.dim; j++) q[j] = embedding[j] * inv;
 
 		// Dot products against all pre-normalised stored vectors (= cosine similarity)
 		const scores = new Float32Array(this.N);
@@ -85,7 +85,7 @@ export class VectorStore {
 		for (let i = 0; i < this.N; i++) {
 			const off = i * dim;
 			let dot = 0;
-			for (let j = 0; j < dim; j++) dot += emb[off + j]! * q[j]!;
+			for (let j = 0; j < dim; j++) dot += emb[off + j] * q[j];
 			scores[i] = dot;
 		}
 
@@ -93,8 +93,8 @@ export class VectorStore {
 		const topIndices = topKIndices(scores, topK);
 
 		return topIndices.map((i) => ({
-			...this.metadata[i]!,
-			score: scores[i]!,
+			...this.metadata[i],
+			score: scores[i],
 		}));
 	}
 }
@@ -111,11 +111,11 @@ function topKIndices(scores: Float32Array, k: number): number[] {
 	const heap: [number, number][] = [];
 
 	for (let i = 0; i < n; i++) {
-		const s = scores[i]!;
+		const s = scores[i];
 		if (heap.length < k) {
 			heap.push([s, i]);
 			if (heap.length === k) buildMinHeap(heap);
-		} else if (s > heap[0]![0]) {
+		} else if (heap[0] !== undefined && s > heap[0][0]) {
 			heap[0] = [s, i];
 			siftDown(heap, 0);
 		}
@@ -136,10 +136,25 @@ function siftDown(h: [number, number][], i: number): void {
 		let smallest = i;
 		const l = 2 * i + 1;
 		const r = 2 * i + 2;
-		if (l < n && h[l]![0] < h[smallest]![0]) smallest = l;
-		if (r < n && h[r]![0] < h[smallest]![0]) smallest = r;
+		if (
+			l < n &&
+			h[l] !== undefined &&
+			h[smallest] !== undefined &&
+			h[l][0] < h[smallest][0]
+		)
+			smallest = l;
+		if (
+			r < n &&
+			h[r] !== undefined &&
+			h[smallest] !== undefined &&
+			h[r][0] < h[smallest][0]
+		)
+			smallest = r;
 		if (smallest === i) break;
-		[h[i], h[smallest]] = [h[smallest]!, h[i]!];
+		[h[i], h[smallest]] = [h[smallest], h[i]] as [
+			[number, number],
+			[number, number],
+		];
 		i = smallest;
 	}
 }

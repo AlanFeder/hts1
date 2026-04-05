@@ -82,7 +82,9 @@ function parseStrList(text: string): string[] {
 			// fall through
 		}
 	}
-	return [...text.matchAll(/"([^"]+)"/g)].map((m) => m[1]!);
+	return [...text.matchAll(/"([^"]+)"/g)].flatMap((m) =>
+		m[1] !== undefined ? [m[1]] : [],
+	);
 }
 
 function parseExploreFinalize(text: string): {
@@ -112,7 +114,7 @@ async function embeddingsPrefilter(
 	nodes: HTSNode[],
 	n: number,
 ): Promise<{ filtered: HTSNode[]; cost: number }> {
-	const texts = nodes.map((nd) => nd.path.join(" ") + " " + nd.description);
+	const texts = nodes.map((nd) => `${nd.path.join(" ")} ${nd.description}`);
 	const [queryEmb, nodeEmbs] = await Promise.all([
 		embedQuery(description),
 		embedTexts(texts, "RETRIEVAL_DOCUMENT"),
@@ -120,7 +122,7 @@ async function embeddingsPrefilter(
 
 	const scored = nodes.map((node, i) => ({
 		node,
-		score: cosineSimilarity(queryEmb, nodeEmbs[i]!),
+		score: cosineSimilarity(queryEmb, nodeEmbs[i] ?? []),
 	}));
 	scored.sort((a, b) => b.score - a.score);
 
@@ -228,10 +230,16 @@ export class AgenticClassifier {
 
 			const explored = exploreIndices
 				.filter((i) => i >= 1 && i <= displayBeam.length)
-				.map((i) => displayBeam[i - 1]!);
+				.flatMap((i) => {
+					const n = displayBeam[i - 1];
+					return n !== undefined ? [n] : [];
+				});
 			const finalized = finalizeIndices
 				.filter((i) => i >= 1 && i <= displayBeam.length)
-				.map((i) => displayBeam[i - 1]!);
+				.flatMap((i) => {
+					const n = displayBeam[i - 1];
+					return n !== undefined ? [n] : [];
+				});
 
 			// Fallback: if nothing selected, finalize first bw nodes
 			const effectiveExplored = explored;
@@ -291,7 +299,10 @@ export class AgenticClassifier {
 			const indices = parseIntList(finalResult.text);
 			final = indices
 				.filter((i) => i >= 1 && i <= finalPool.length)
-				.map((i) => finalPool[i - 1]!);
+				.flatMap((i) => {
+					const n = finalPool[i - 1];
+					return n !== undefined ? [n] : [];
+				});
 			if (final.length === 0) final = finalPool.slice(0, topK);
 		} else {
 			final = finalPool;

@@ -91,7 +91,10 @@ export class RerankClassifier {
 
 		const reranked = rerankedIndices
 			.filter((i) => i >= 1 && i <= candidates.length)
-			.map((i) => candidates[i - 1]!)
+			.flatMap((i) => {
+				const c = candidates[i - 1];
+				return c !== undefined ? [c] : [];
+			})
 			.slice(0, topK);
 
 		console.info(

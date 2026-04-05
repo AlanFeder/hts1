@@ -41,11 +41,12 @@ export class EmbeddingsClassifier {
 			const pathScores = new Map(pathResults.map((r) => [r.hts_code, r]));
 
 			const allCodes = new Set([...leafScores.keys(), ...pathScores.keys()]);
-			const blended = [...allCodes].map((code) => {
+			const blended = [...allCodes].flatMap((code) => {
+				const entry = leafScores.get(code) ?? pathScores.get(code);
+				if (entry === undefined) return [];
 				const ls = leafScores.get(code)?.score ?? 0;
 				const ps = pathScores.get(code)?.score ?? 0;
-				const entry = leafScores.get(code) ?? pathScores.get(code)!;
-				return { ...entry, score: (1 - pathWeight) * ls + pathWeight * ps };
+				return [{ ...entry, score: (1 - pathWeight) * ls + pathWeight * ps }];
 			});
 
 			blended.sort((a, b) => b.score - a.score);
