@@ -1,3 +1,5 @@
+import time
+
 from fastapi import APIRouter, HTTPException, Request
 from loguru import logger
 
@@ -27,10 +29,13 @@ async def classify(body: ClassifyRequest, request: Request) -> ClassifyResponse:
                 f"classify | {param}={value!r} has no effect for method={body.method!r} (only used by {intended_method!r})"
             )
 
-    return await classifier.classify(
+    t0 = time.perf_counter()
+    response = await classifier.classify(
         body.description,
         body.top_k,
         path_weight=body.path_weight,
         candidate_pool=body.candidate_pool,
         beam_width=body.beam_width,
     )
+    response.elapsed_ms = (time.perf_counter() - t0) * 1000
+    return response

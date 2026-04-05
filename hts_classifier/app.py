@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
 from .api.routes import classify, health
@@ -69,6 +70,12 @@ def create_app() -> FastAPI:
         description="AI-powered Harmonized Tariff Schedule classifier",
         version="0.1.0",
         lifespan=lifespan,
+    )
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://localhost:5173", "http://localhost:4173"],
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
     app.include_router(health.router)
     app.include_router(classify.router)

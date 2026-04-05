@@ -29,4 +29,5 @@ class ClassifyResponse(BaseModel):
     method: str
     query: str
     cost_usd: float | None = None  # approximate Vertex AI cost for this request
+    elapsed_ms: float | None = None  # wall-clock time for this request
     intermediates: dict[str, Any] | None = None
