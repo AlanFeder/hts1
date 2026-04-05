@@ -12,12 +12,12 @@ When a shipment arrives with a description like "16 inch MacBook Pro with M4 chi
 
 Four AI classification methods, selectable per request:
 
-| Method | Approach | Best for |
-|--------|----------|----------|
-| `embeddings` | Embed query → cosine similarity against indexed HTS entries | Fast, good baseline |
-| `gar` | LLM generates search terms → BM25 text search | When exact trade terminology matters |
-| `agentic` | LLM navigates HTS tree level-by-level (beam search) | Complex or ambiguous descriptions |
-| `rerank` | Embeddings retrieval (top 20) → LLM reranking | Best accuracy, moderate cost |
+| Method | Approach | LLM calls | Best for |
+|--------|----------|-----------|----------|
+| `embeddings` | Embed query → cosine similarity | 0 | Fast baseline, high volume |
+| `gar` | LLM generates trade terms → BM25 | 1 | Consumer language → trade terminology |
+| `agentic` | LLM navigates HTS tree, explore/finalize at each level | 4–8 | Complex/ambiguous, needs audit trail |
+| `rerank` | Embeddings retrieval → LLM reranking | 1 | Best single-call accuracy |
 
 See [docs/mechanisms.md](docs/mechanisms.md) for detailed descriptions.
 
@@ -27,13 +27,15 @@ See [docs/mechanisms.md](docs/mechanisms.md) for detailed descriptions.
 POST /classify
 {
   "description": "16 inch MacBook Pro laptop computer",
-  "method": "embeddings",   // or "gar", "agentic", "rerank"
+  "method": "embeddings",     // "embeddings" | "gar" | "agentic" | "rerank"
   "top_k": 5,
-  "path_weight": null       // embeddings only: 0.0–1.0 blend of leaf vs path embeddings
+  "path_weight": null,        // embeddings only: 0.0–1.0 blend of leaf vs path embeddings
+  "candidate_pool": null,     // rerank only: retrieval pool size (default 20)
+  "beam_width": null          // agentic only: overrides BEAM_WIDTH env var
 }
 ```
 
-Response includes `results` (ranked HTS codes with scores) and `intermediates` (all intermediate scores/LLM outputs for transparency).
+Response includes `results` (ranked HTS codes with scores), `cost_usd` (approximate Vertex AI cost), and `intermediates` (all intermediate scores/LLM outputs for transparency).
 
 ```
 GET /health
@@ -95,4 +97,4 @@ See [docs/hts_json_processing.md](docs/hts_json_processing.md) for how the raw J
 
 ## Current status
 
-See [docs/status.md](docs/status.md) for current implementation state.
+See [docs/status.md](docs/status.md) for current implementation state and example curl commands.

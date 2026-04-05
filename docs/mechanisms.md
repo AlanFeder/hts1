@@ -1,6 +1,6 @@
 # Classifier Mechanisms
 
-All four methods share the same API contract (`POST /classify`) and return the same `ClassifyResponse` shape, including an `intermediates` field with all intermediate scores and LLM outputs.
+All four methods share the same API contract (`POST /classify`) and return the same `ClassifyResponse` shape.
 
 ---
 
@@ -18,7 +18,7 @@ Controls how leaf vs. path embeddings are blended at query time:
 
 | `path_weight` | Behavior |
 |---|---|
-| `null` (default) | Query the avg collection directly — fastest |
+| `null` (default) | Query the avg collection directly — fastest, single query |
 | `0.0` | Leaf description embedding only |
 | `1.0` | Full ancestor path string embedding only |
 | `0.0–1.0` | Blend: `score = (1-w)*leaf_score + w*path_score` |
@@ -30,6 +30,9 @@ Three ChromaDB collections are populated:
 - `hts_entries` — avg(leaf, path) embeddings
 - `hts_entries_leaf` — leaf description embeddings
 - `hts_entries_path` — path string embeddings
+
+### Cost
+Embedding only — no LLM call. Approximate: `$0.000025 / 1K chars` for the query. Tracked in `cost_usd`.
 
 ### Intermediates logged
 - `query_embedding_norm` — sanity check on query vector quality
@@ -56,6 +59,9 @@ Fast and cheap. Good baseline. Works best when the query description is semantic
 ### Why BM25 (not embeddings) for GAR
 The LLM is generating *trade terminology* — exact words likely to appear in HTS descriptions. BM25 rewards exact token overlap, which is precisely what we want here. Embeddings would dilute specificity with semantic similarity.
 
+### Cost
+One LLM call. Token counts and cost tracked in `cost_usd` via `usage_metadata`.
+
 ### Intermediates logged
 - `expanded_terms` — the list of terms the LLM generated
 - `llm_raw_response` — raw LLM output before parsing
@@ -70,31 +76,32 @@ When the query uses consumer/colloquial language and the target HTS descriptions
 
 **File:** `hts_classifier/classifiers/agentic.py`
 
+See [docs/agentic_search.md](agentic_search.md) for full design notes.
+
 ### How it works
-Level-by-level beam search through the HTS chapter tree:
+Layer-by-layer HTS tree traversal with LLM **explore/finalize** decisions at each level:
 
-1. **Chapter selection**: Show the LLM all ~99 chapters (2-digit codes) with sample descriptions. Ask it to pick the `beam_width` most relevant chapters.
-2. **Beam initialization**: Collect all indent=0 heading nodes from selected chapters. BM25-prefilter to ≤40 candidates.
-3. **Beam expansion** (up to depth 12):
-   - Show current beam candidates to LLM, ask it to pick `beam_width` most relevant
-   - Expand each selected node's children
-   - Repeat until all beam nodes are leaves (no children)
-4. **Final ranking**: BM25-prefilter to top-k×2 candidates, ask LLM for final ordered ranking
-
-BM25 pre-filtering at each step prevents the LLM prompt from growing unbounded when a node has many children.
+1. **Chapter selection**: LLM sees all ~99 chapters, picks `beam_width` to explore
+2. **Explore/finalize loop** (up to depth 12):
+   - Show all current beam nodes to LLM (unfiltered if ≤50; embedding-prefiltered if >50)
+   - LLM returns `{"explore": [...], "finalize": [...]}` — 1-indexed
+   - Explored nodes: expand children into next beam
+   - Finalized nodes: add to `final_pool` (even if they have subcodes)
+   - Leaves marked explore: auto-finalized
+3. **Final ranking**: if `final_pool > top_k`, one more LLM call to pick the best `top_k`
 
 ### Configuration
-- `beam_width`: number of candidates to keep at each level (default: 3, set in `.env` as `BEAM_WIDTH`)
+- `beam_width`: chapters selected at step 1; soft target for explore count per step (default: 3, set via API or `.env BEAM_WIDTH`)
+- `top_k`: final result count
+
+### Cost
+Multiple LLM calls (typically 4–8) plus occasional embedding prefilter call. Full cost tracked in `cost_usd`. Typical range: $0.001–0.010 per query.
 
 ### Intermediates logged
-- `beam_steps`: list of dicts, one per depth level, each containing:
-  - `step`: `"chapter_selection"`, `"depth_0"`, ..., `"final_ranking"`
-  - `candidates_count`: how many nodes were shown to LLM
-  - `selected`: descriptions of selected nodes
-  - `llm_response`: raw LLM output
+`beam_steps`: list of per-depth dicts with `step`, `beam_size`, `explored`, `finalized`, `llm_response`
 
 ### When to use
-Complex or ambiguous descriptions where the correct code depends on navigating the hierarchy carefully. Most expensive (multiple LLM calls), but most interpretable — you can see exactly which branches were explored.
+Complex or ambiguous descriptions where navigating the hierarchy matters. Most expensive but most interpretable — full audit trail of which branches were explored.
 
 ---
 
@@ -105,28 +112,70 @@ Complex or ambiguous descriptions where the correct code depends on navigating t
 ### How it works
 Two-stage: broad retrieval, then precise ranking.
 
-1. **Retrieval**: Embed the query and fetch top-20 candidates from ChromaDB (same as Method 1, but larger pool)
-2. **Reranking**: Show all 20 candidates to Gemini Flash Lite with the original query. Ask it to rerank them from most to least relevant. Return top-k from the reranked list.
+1. **Retrieval**: Embed the query and fetch `candidate_pool` candidates from ChromaDB (default 20)
+2. **Reranking**: Show all candidates to Gemini Flash Lite with the original query. Ask it to rerank by relevance. Return top-k from the reranked list.
+
+### Configuration
+- `candidate_pool`: number of candidates retrieved before reranking (default 20, settable via API)
+
+### Cost
+One embedding call + one LLM call. Both tracked in `cost_usd`.
 
 ### Why this works better than embeddings alone
-Embedding-based retrieval optimizes for semantic proximity in vector space — it has good *recall* (the right answer is usually in the top 20) but imperfect *precision* (the top 1 isn't always correct). The LLM reranker applies deeper reasoning about tariff classification nuance to promote the genuinely best match.
+Embedding retrieval has good *recall* (right answer usually in top 20) but imperfect *precision* (top 1 isn't always correct). The LLM reranker applies deeper reasoning to promote the genuinely best match.
 
 ### Intermediates logged
-- `candidate_pool`: number of candidates retrieved (default 20)
+- `candidate_pool`: number of candidates retrieved
 - `initial_ranking`: original embedding scores before reranking
 - `llm_raw_response`: raw LLM output before parsing
-- `reranked_ranking`: final HTS codes in reranked order with scores
+- `reranked_ranking`: final HTS codes in reranked order
 
 ### When to use
 When you want the best accuracy and can afford one extra LLM call. Good default for production use.
 
 ---
 
+## API parameters
+
+```json
+POST /classify
+{
+  "description": "16 inch MacBook Pro",
+  "method": "embeddings",       // "embeddings" | "gar" | "agentic" | "rerank"
+  "top_k": 5,
+  "path_weight": null,          // embeddings only: 0.0–1.0 or null
+  "candidate_pool": null,       // rerank only: retrieval pool size (default 20)
+  "beam_width": null            // agentic only: overrides BEAM_WIDTH env var
+}
+```
+
+Warnings are logged (but not errors) if method-specific parameters are sent with the wrong method.
+
+## Response shape
+
+```json
+{
+  "results": [
+    {
+      "hts_code": "8471.30.01",
+      "description": "Portable automatic data processing machines...",
+      "path": ["Chapter 84", "8471", "8471.30", "8471.30.01"],
+      "score": 0.91,
+      "general_rate": "Free"
+    }
+  ],
+  "method": "embeddings",
+  "query": "16 inch MacBook Pro",
+  "cost_usd": 0.0000023,
+  "intermediates": { ... }
+}
+```
+
 ## Comparison
 
-| | Speed | LLM calls | Accuracy | Interpretability |
+| | Speed | LLM calls | Cost (approx) | Best for |
 |---|---|---|---|---|
-| embeddings | Fast | 0 | Good | Low (just scores) |
-| gar | Medium | 1 | Good for trade terms | Medium |
-| agentic | Slow | 4–15 | High | High (full trace) |
-| rerank | Medium | 1 | High | Medium |
+| `embeddings` | Fast | 0 | <$0.00001 | Quick baseline, high volume |
+| `gar` | Medium | 1 | ~$0.0001 | Consumer terms → trade language |
+| `agentic` | Slow | 4–8 | $0.001–0.010 | Complex/ambiguous, needs audit trail |
+| `rerank` | Medium | 1 | ~$0.0002 | Best single-call accuracy |
