@@ -13,7 +13,7 @@ from .classifiers.rerank import RerankClassifier
 from .core.config import settings
 from .data.loader import fetch_hts_data
 from .data.processor import load_or_process
-from .services.vector_store import VectorStore
+from .services.vector_store import COLLECTION_LEAF, COLLECTION_PATH, VectorStore
 
 
 def _configure_logging() -> None:
@@ -43,11 +43,18 @@ async def lifespan(app: FastAPI):
     logger.info("Flat entries: {:,} | Chapters: {}", len(flat_entries), len(chapters))
 
     vector_store = VectorStore()
-    logger.info("ChromaDB loaded: {:,} indexed entries", vector_store.count)
+    leaf_store = VectorStore(COLLECTION_LEAF)
+    path_store = VectorStore(COLLECTION_PATH)
+    logger.info(
+        "ChromaDB loaded: avg={:,} leaf={:,} path={:,}",
+        vector_store.count,
+        leaf_store.count,
+        path_store.count,
+    )
 
     app.state.vector_store = vector_store
     app.state.classifiers = {
-        "embeddings": EmbeddingsClassifier(vector_store),
+        "embeddings": EmbeddingsClassifier(vector_store, leaf_store, path_store),
         "gar": GARClassifier(flat_entries),
         "agentic": AgenticClassifier(chapters),
         "rerank": RerankClassifier(vector_store),

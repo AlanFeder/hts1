@@ -13,20 +13,33 @@ All four methods share the same API contract (`POST /classify`) and return the s
 2. Query ChromaDB for the top-k nearest vectors by cosine similarity
 3. Return results sorted by similarity score (0–1)
 
-### Indexing (done once at ingest time)
-Each HTS entry is stored as the **average** of two embeddings:
-- `leaf_embedding`: embedding of the entry's own description
-- `path_embedding`: embedding of the full ancestor path string (e.g. `"Machinery > Computers > Laptops"`)
+### path_weight parameter
+Controls how leaf vs. path embeddings are blended at query time:
 
-Averaging gives the vector both specificity and hierarchical context.
+| `path_weight` | Behavior |
+|---|---|
+| `null` (default) | Query the avg collection directly — fastest |
+| `0.0` | Leaf description embedding only |
+| `1.0` | Full ancestor path string embedding only |
+| `0.0–1.0` | Blend: `score = (1-w)*leaf_score + w*path_score` |
+
+When `path_weight` is set, both leaf and path collections are queried (top k×4 pool each), scores are blended, then re-sorted and trimmed to `top_k`.
+
+### Indexing (done once at ingest time)
+Three ChromaDB collections are populated:
+- `hts_entries` — avg(leaf, path) embeddings
+- `hts_entries_leaf` — leaf description embeddings
+- `hts_entries_path` — path string embeddings
 
 ### Intermediates logged
 - `query_embedding_norm` — sanity check on query vector quality
 - `embedding_dim` — should be 768 for text-embedding-005
+- `mode` — `"avg"` or `"weighted"`
+- `path_weight` — if weighted mode
 - `raw_scores` — cosine similarity for each result
 
 ### When to use
-Fast and cheap. Good baseline. Works best when the query description is semantically close to HTS language.
+Fast and cheap. Good baseline. Works best when the query description is semantically close to HTS language. Use `path_weight=0.7`–`1.0` when the query is more about category/context than a specific item.
 
 ---
 
@@ -71,7 +84,7 @@ Level-by-level beam search through the HTS chapter tree:
 BM25 pre-filtering at each step prevents the LLM prompt from growing unbounded when a node has many children.
 
 ### Configuration
-- `beam_width`: number of candidates to keep at each level (default: 3, set in `.env` or config)
+- `beam_width`: number of candidates to keep at each level (default: 3, set in `.env` as `BEAM_WIDTH`)
 
 ### Intermediates logged
 - `beam_steps`: list of dicts, one per depth level, each containing:
@@ -102,7 +115,7 @@ Embedding-based retrieval optimizes for semantic proximity in vector space — i
 - `candidate_pool`: number of candidates retrieved (default 20)
 - `initial_ranking`: original embedding scores before reranking
 - `llm_raw_response`: raw LLM output before parsing
-- `reranked_order`: final HTS codes in reranked order
+- `reranked_ranking`: final HTS codes in reranked order with scores
 
 ### When to use
 When you want the best accuracy and can afford one extra LLM call. Good default for production use.

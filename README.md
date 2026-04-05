@@ -28,7 +28,8 @@ POST /classify
 {
   "description": "16 inch MacBook Pro laptop computer",
   "method": "embeddings",   // or "gar", "agentic", "rerank"
-  "top_k": 5
+  "top_k": 5,
+  "path_weight": null       // embeddings only: 0.0–1.0 blend of leaf vs path embeddings
 }
 ```
 
@@ -36,7 +37,7 @@ Response includes `results` (ranked HTS codes with scores) and `intermediates` (
 
 ```
 GET /health
-→ { "status": "ok", "indexed_entries": 17432 }
+→ { "status": "ok", "indexed_entries": 29807 }
 ```
 
 ## Setup
@@ -55,7 +56,7 @@ GOOGLE_CLOUD_LOCATION=us-central1
 # Optional tuning
 GENERATION_MODEL=gemini-2.5-flash-lite     # default
 EMBEDDING_MODEL=text-embedding-005         # default
-EMBEDDING_CONCURRENCY=8                    # concurrent embedding batches (default 8)
+BEAM_WIDTH=3                               # agentic classifier beam width (default 3)
 ```
 
 ### Install
@@ -63,17 +64,23 @@ EMBEDDING_CONCURRENCY=8                    # concurrent embedding batches (defau
 uv sync
 ```
 
-### Ingest HTS data (one-time, ~2 min)
+### Ingest HTS data (one-time, ~10–20 min)
 ```bash
 # Test first with a small slice
 uv run scripts/ingest.py --chapters 84,85  # electronics chapters (~3,500 entries)
 uv run scripts/ingest.py --limit 100       # first 100 entries only
 
-# Full ingest (29,807 entries, ~2 min)
+# Full ingest (29,807 entries)
 uv run scripts/ingest.py
 ```
 
-Embeddings are cached in `data/chroma/`. Re-run only if the HTS data is updated (delete `data/chroma/` to force re-embedding).
+Ingest is **resumable** — if it fails (e.g. rate limit), just re-run and it picks up where it left off.
+
+Embeddings are cached in `data/chroma/` across **3 collections**: avg, leaf, and path. To start fresh:
+```bash
+rm -rf data/chroma data/hts_raw.json data/hts_processed.json
+uv run scripts/ingest.py
+```
 
 ### Run the server
 ```bash
@@ -82,6 +89,10 @@ uv run main.py
 
 ## Data source
 
-[USITC HTS 2026 Revision 4](https://www.usitc.gov/sites/default/files/tata/hts/hts_2026_revision_4_json.json) — 35,733 entries, 12 hierarchy levels.
+[USITC HTS 2026 Revision 4](https://www.usitc.gov/sites/default/files/tata/hts/hts_2026_revision_4_json.json) — 35,733 entries, 12 hierarchy levels. 29,807 entries have actual HTS codes and are indexed; the remainder are structural headings used only for path-building.
 
 See [docs/hts_json_processing.md](docs/hts_json_processing.md) for how the raw JSON is processed.
+
+## Current status
+
+See [docs/status.md](docs/status.md) for current implementation state.

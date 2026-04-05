@@ -40,12 +40,11 @@ class RerankClassifier(BaseClassifier):
         self._store = vector_store
         self._candidate_pool = candidate_pool
 
-    async def classify(self, description: str, top_k: int = 5) -> ClassifyResponse:
+    async def classify(
+        self, description: str, top_k: int = 5, path_weight: float | None = None
+    ) -> ClassifyResponse:
         logger.info(
-            "rerank | query=%r top_k=%d candidate_pool=%d",
-            description,
-            top_k,
-            self._candidate_pool,
+            f"rerank | query={description!r} top_k={top_k} candidate_pool={self._candidate_pool}"
         )
 
         # Step 1: embedding retrieval
@@ -53,14 +52,11 @@ class RerankClassifier(BaseClassifier):
         candidates = self._store.query(embedding, top_k=self._candidate_pool)
 
         logger.info(
-            "rerank | retrieved %d candidates from vector store", len(candidates)
+            f"rerank | retrieved {len(candidates)} candidates from vector store"
         )
         for c in candidates:
             logger.debug(
-                "rerank | initial score=%.4f hts=%s desc=%r",
-                c["score"],
-                c["hts_code"],
-                c["description"],
+                f"rerank | initial score={c['score']:.4f} hts={c['hts_code']} desc={c['description']!r}"
             )
 
         initial_ranking = [
@@ -85,7 +81,7 @@ class RerankClassifier(BaseClassifier):
                 n=len(candidates),
             )
         )
-        logger.debug("rerank | LLM rerank response: %s", response)
+        logger.debug(f"rerank | LLM rerank response: {response}")
 
         # Parse reranked order
         reranked_indices: list[int] = []
@@ -108,7 +104,7 @@ class RerankClassifier(BaseClassifier):
             candidates[i - 1] for i in reranked_indices if 0 < i <= len(candidates)
         ][:top_k]
 
-        logger.info("rerank | final order: %s", [r["hts_code"] for r in reranked])
+        logger.info(f"rerank | final order: {[r['hts_code'] for r in reranked]}")
 
         return ClassifyResponse(
             results=[

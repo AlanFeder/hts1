@@ -26,11 +26,13 @@ class GARClassifier(BaseClassifier):
         self._bm25 = BM25Okapi(tokenized)
         self._entries = entries
 
-    async def classify(self, description: str, top_k: int = 5) -> ClassifyResponse:
-        logger.info("gar | query=%r top_k=%d", description, top_k)
+    async def classify(
+        self, description: str, top_k: int = 5, path_weight: float | None = None
+    ) -> ClassifyResponse:
+        logger.info(f"gar | query={description!r} top_k={top_k}")
 
         response = await generate_text(_PROMPT.format(description=description))
-        logger.debug("gar | raw LLM response: %s", response)
+        logger.debug(f"gar | raw LLM response: {response}")
 
         expanded_terms: list[str] = [description]
         match = re.search(r"\[.*?\]", response, re.DOTALL)
@@ -40,7 +42,7 @@ class GARClassifier(BaseClassifier):
             except (json.JSONDecodeError, ValueError):
                 logger.warning("gar | failed to parse expanded terms from LLM response")
 
-        logger.info("gar | expanded_terms=%s", expanded_terms)
+        logger.info(f"gar | expanded_terms={expanded_terms}")
 
         combined_query = " ".join(expanded_terms).lower().split()
         scores = self._bm25.get_scores(combined_query)
@@ -50,11 +52,8 @@ class GARClassifier(BaseClassifier):
 
         for i in top_indices:
             logger.info(
-                "gar | bm25_score=%.4f (norm=%.4f) hts=%s desc=%r",
-                float(scores[i]),
-                float(scores[i]) / max_score,
-                self._entries[i].hts_code,
-                self._entries[i].description,
+                f"gar | bm25_score={float(scores[i]):.4f} (norm={float(scores[i]) / max_score:.4f})"
+                f" hts={self._entries[i].hts_code} desc={self._entries[i].description!r}"
             )
 
         intermediates = {

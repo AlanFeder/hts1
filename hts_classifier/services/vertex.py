@@ -52,7 +52,10 @@ def _make_batches(texts: list[str]) -> list[list[str]]:
     current_chars = 0
     for text in texts:
         n = len(text)
-        if current and (current_chars + n > _MAX_CHARS_PER_BATCH or len(current) >= _MAX_TEXTS_PER_BATCH):
+        if current and (
+            current_chars + n > _MAX_CHARS_PER_BATCH
+            or len(current) >= _MAX_TEXTS_PER_BATCH
+        ):
             batches.append(current)
             current = [text]
             current_chars = n
@@ -75,7 +78,9 @@ async def embed_texts(
     results: list[list[float]] = []
     it = tqdm(batches, desc="batches") if show_progress else batches
     for batch in it:
-        batch_result = await loop.run_in_executor(None, _embed_batch_sync, batch, task_type)
+        batch_result = await loop.run_in_executor(
+            None, _embed_batch_sync, batch, task_type
+        )
         results.extend(batch_result)
     return results
 

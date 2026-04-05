@@ -7,6 +7,9 @@ class ClassifyRequest(BaseModel):
     description: str
     method: Literal["embeddings", "gar", "agentic", "rerank"] = "embeddings"
     top_k: int = 5
+    path_weight: float | None = (
+        None  # embeddings only: 0.0=leaf-only, 1.0=path-only, None=avg
+    )
 
 
 class HTSResult(BaseModel):

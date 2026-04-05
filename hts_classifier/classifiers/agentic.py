@@ -87,12 +87,11 @@ class AgenticClassifier(BaseClassifier):
         self._chapters = chapters
         self._beam_width = beam_width or settings.beam_width
 
-    async def classify(self, description: str, top_k: int = 5) -> ClassifyResponse:
+    async def classify(
+        self, description: str, top_k: int = 5, path_weight: float | None = None
+    ) -> ClassifyResponse:
         logger.info(
-            "agentic | query=%r top_k=%d beam_width=%d",
-            description,
-            top_k,
-            self._beam_width,
+            f"agentic | query={description!r} top_k={top_k} beam_width={self._beam_width}"
         )
         beam_steps: list[dict] = []
 
@@ -111,7 +110,7 @@ class AgenticClassifier(BaseClassifier):
             )
         )
         selected_ch_codes = _parse_str_list(response)
-        logger.info("agentic | selected chapters: %s", selected_ch_codes)
+        logger.info(f"agentic | selected chapters: {selected_ch_codes}")
         beam_steps.append(
             {
                 "step": "chapter_selection",
@@ -139,7 +138,7 @@ class AgenticClassifier(BaseClassifier):
             non_leaves = [n for n in beam if n.children]
             if not non_leaves:
                 logger.info(
-                    "agentic | depth=%d all beam nodes are leaves, stopping", depth
+                    f"agentic | depth={depth} all beam nodes are leaves, stopping"
                 )
                 break
 
@@ -160,7 +159,7 @@ class AgenticClassifier(BaseClassifier):
                 selected = candidates[: self._beam_width]
 
             selected_descs = [_format_node(n) for n in selected]
-            logger.info("agentic | depth=%d selected: %s", depth, selected_descs)
+            logger.info(f"agentic | depth={depth} selected: {selected_descs}")
             beam_steps.append(
                 {
                     "step": f"depth_{depth}",
@@ -206,7 +205,7 @@ class AgenticClassifier(BaseClassifier):
             response = ""
 
         final_descs = [_format_node(n) for n in final]
-        logger.info("agentic | final results: %s", final_descs)
+        logger.info(f"agentic | final results: {final_descs}")
         beam_steps.append(
             {"step": "final_ranking", "selected": final_descs, "llm_response": response}
         )

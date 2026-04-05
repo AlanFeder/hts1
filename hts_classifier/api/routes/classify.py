@@ -11,4 +11,6 @@ async def classify(body: ClassifyRequest, request: Request) -> ClassifyResponse:
     classifier = classifiers.get(body.method)
     if classifier is None:
         raise HTTPException(status_code=400, detail=f"Unknown method: {body.method}")
-    return await classifier.classify(body.description, body.top_k)
+    return await classifier.classify(
+        body.description, body.top_k, path_weight=body.path_weight
+    )

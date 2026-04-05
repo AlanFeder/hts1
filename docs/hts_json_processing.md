@@ -7,7 +7,7 @@ Source: `https://www.usitc.gov/sites/default/files/tata/hts/hts_2026_revision_4_
 The file is a **flat JSON array** of 35,733 objects. Each object represents one row in the tariff schedule. Fields:
 
 | Field | Type | Notes |
-|-------------------------|----------------------|-------------------------|
+|---|---|---|
 | `htsno` | string | HTS code, e.g. `"0101.21.00"`. Empty for structural parent rows. |
 | `indent` | string | Depth in hierarchy: `"0"` through `"11"`. Occasionally zero-padded (`"03"`). |
 | `description` | string | Human-readable description of the category or product. |
@@ -24,7 +24,7 @@ The hierarchy is **not nested in the JSON** — it is encoded via the `indent` v
 
 We reconstruct the hierarchy using a **rolling path stack** — a dict mapping indent level to the description at that level.
 
-``` python
+```python
 path_stack: dict[int, str] = {}
 
 for item in raw:
@@ -44,7 +44,7 @@ for item in raw:
 
 Raw JSON (three consecutive rows):
 
-``` json
+```json
 {"indent": "0", "htsno": "0101", "description": "Live horses, asses, mules and hinnies:"}
 {"indent": "1", "htsno": "",     "description": "Horses:", "superior": "true"}
 {"indent": "2", "htsno": "0101.21.00", "description": "Purebred breeding animals", "general": "Free"}
@@ -52,7 +52,7 @@ Raw JSON (three consecutive rows):
 
 Path stack evolution:
 
-```         
+```
 After indent=0:  {0: "Live horses, asses, mules and hinnies:"}
 After indent=1:  {0: "Live horses, asses, mules and hinnies:", 1: "Horses:"}
 After indent=2:  {0: "Live horses, asses, mules and hinnies:", 1: "Horses:", 2: "Purebred breeding animals"}
@@ -60,7 +60,7 @@ After indent=2:  {0: "Live horses, asses, mules and hinnies:", 1: "Horses:", 2: 
 
 Resulting `path_string` for `0101.21.00`:
 
-```         
+```
 Live horses, asses, mules and hinnies: > Horses: > Purebred breeding animals
 ```
 
@@ -68,7 +68,7 @@ Live horses, asses, mules and hinnies: > Horses: > Purebred breeding animals
 
 If the next row has `indent=1` again (a new sub-category like "Asses"), keys `> 1` are deleted:
 
-```         
+```
 Before: {0: "...", 1: "Horses:", 2: "Purebred breeding animals"}
 After:  {0: "...", 1: "Asses:"}
 ```
@@ -79,30 +79,46 @@ This correctly represents the new branch without cross-contamination.
 
 Only entries with a non-empty `htsno` become `HTSEntry` objects. Structural parent rows (empty `htsno`, `superior: "true"`) are used to build paths but are not stored in the embeddings index.
 
-Each `HTSEntry` has: - `hts_code` — the dot-formatted HTS number - `description` — the leaf description - `indent` — depth (0–11) - `path` — list of ancestor descriptions (including self) - `path_string` — `" > ".join(path)` — used as the document for BM25 and embeddings - `general_rate` — duty rate string
+- Total raw rows: 35,733
+- Entries with real HTS codes: **29,807** (~83%)
+- Dropped rows: ~5,926 structural headings (section titles, chapter headings, `superior` rows)
 
-Total flat entries with real codes: \~17,000–18,000 (roughly half of 35,733 rows have an `htsno`).
+Each `HTSEntry` has:
+- `hts_code` — the dot-formatted HTS number
+- `description` — the leaf description
+- `indent` — depth (0–11)
+- `path` — list of ancestor descriptions (including self)
+- `path_string` — `" > ".join(path)` — used as the document for BM25 and embeddings
+- `general_rate` — duty rate string
 
 ## Output: HTSNode (chapter tree)
 
 For the agentic classifier, we also build a tree using a **parent node stack**. Each node holds a `children` list. The tree is rebuilt at server startup from the cached `hts_raw.json` (fast, O(n)).
 
-Chapters are grouped by 2-digit prefix (e.g. chapter `"84"` = Nuclear reactors, boilers, machinery).
+Chapters are grouped by 2-digit prefix (e.g. chapter `"84"` = Nuclear reactors, boilers, machinery). 98 chapters total.
 
 ## Embedding strategy
 
-Each entry is embedded as the **average of two vectors**: 1. `leaf_embedding` — embedding of the entry's own `description` 2. `path_embedding` — embedding of the full `path_string`
+Three ChromaDB collections are written at ingest time:
 
-Averaging combines: - **Specificity** from the leaf (e.g. "Purebred breeding animals") - **Context** from the path (e.g. "Live horses \> Horses \> Purebred breeding animals")
+| Collection | Embedding | Purpose |
+|---|---|---|
+| `hts_entries` | avg(leaf, path) | Default query — balanced specificity + context |
+| `hts_entries_leaf` | leaf description only | Weighted blending when `path_weight` < 1 |
+| `hts_entries_path` | full path string only | Weighted blending when `path_weight` > 0 |
 
-Both use task type `RETRIEVAL_DOCUMENT`. Queries use `RETRIEVAL_QUERY`.
+All use task type `RETRIEVAL_DOCUMENT`. Queries use `RETRIEVAL_QUERY`.
+
+The `path_weight` request parameter (0.0–1.0) controls blending at query time:
+- `null` → query `hts_entries` (avg) directly — fastest
+- `0.0`–`1.0` → query both leaf + path collections, blend: `score = (1-w)*leaf_score + w*path_score`
 
 ## Caching
 
 | Artifact | Path | When created |
-|-----------------------|-----------------|--------------------------------|
+|---|---|---|
 | Raw JSON | `data/hts_raw.json` | First call to `fetch_hts_data()` |
 | Flat entries | `data/hts_processed.json` | First call to `load_or_process()` or `ingest.py` |
 | Embeddings | `data/chroma/` | `ingest.py` run |
 
-Delete a file to force re-creation. The raw download is \~15MB; embeddings take 30-60 minutes for the full dataset.
+Delete a file to force re-creation. The raw download is ~15MB; full ingest takes ~10–20 min (sequential API calls, resumable).

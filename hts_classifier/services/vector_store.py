@@ -6,14 +6,18 @@ from ..core.config import settings
 from ..data.processor import HTSEntry
 
 
-class VectorStore:
-    COLLECTION_NAME = "hts_entries"
+# Collection names used during ingest and at query time
+COLLECTION_AVG = "hts_entries"
+COLLECTION_LEAF = "hts_entries_leaf"
+COLLECTION_PATH = "hts_entries_path"
 
-    def __init__(self) -> None:
+
+class VectorStore:
+    def __init__(self, collection_name: str = COLLECTION_AVG) -> None:
         Path(settings.chroma_path).mkdir(parents=True, exist_ok=True)
         self._client = chromadb.PersistentClient(path=settings.chroma_path)
         self._collection = self._client.get_or_create_collection(
-            name=self.COLLECTION_NAME,
+            name=collection_name,
             metadata={"hnsw:space": "cosine"},
         )
 
@@ -22,7 +26,7 @@ class VectorStore:
         return self._collection.count()
 
     def get_all_ids(self) -> list[str]:
-        return self._collection.get(include=[])["ids"]  # ty: ignore[index]
+        return self._collection.get(include=[])["ids"]
 
     def upsert(self, entries: list[HTSEntry], embeddings: list[list[float]]) -> None:
         self._collection.upsert(
