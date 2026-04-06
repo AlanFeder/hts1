@@ -50,9 +50,14 @@ export default function GarIntermediatesPanel({
         <div className="space-y-2">
           {data.bm25_scores.map((s, i) => (
             <div key={s.hts_code + i} className="flex items-center gap-3">
-              <span className="hts-badge flex-shrink-0 w-28 text-center">
+              <a
+                href={`https://hts.usitc.gov/search?query=${s.hts_code}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hts-badge flex-shrink-0 w-28 text-center hover:opacity-80 transition-opacity"
+              >
                 {s.hts_code}
-              </span>
+              </a>
               <div className="flex-1 bg-slate-100 rounded-full h-2 overflow-hidden">
                 <div
                   className="h-full bg-emerald-500 rounded-full"

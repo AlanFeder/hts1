@@ -32,9 +32,14 @@ export default function EmbeddingsIntermediatesPanel({
         <div className="space-y-2">
           {data.raw_scores.map((r, i) => (
             <div key={r.hts_code + i} className="flex items-center gap-3">
-              <span className="hts-badge flex-shrink-0 w-28 text-center">
+              <a
+                href={`https://hts.usitc.gov/search?query=${r.hts_code}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hts-badge flex-shrink-0 w-28 text-center hover:opacity-80 transition-opacity"
+              >
                 {r.hts_code}
-              </span>
+              </a>
               <div className="flex-1 bg-slate-100 rounded-full h-2 overflow-hidden">
                 <div
                   className="h-full bg-blue-500 rounded-full transition-all"

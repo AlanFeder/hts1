@@ -261,7 +261,7 @@ export default function CompareView() {
                         {s.status === "loading" ? (
                           <div className="h-4 w-24 bg-slate-200 rounded animate-pulse" />
                         ) : top ? (
-                          <span className="hts-badge">{top.hts_code}</span>
+                          <a href={`https://hts.usitc.gov/search?query=${top.hts_code}`} target="_blank" rel="noopener noreferrer" className="hts-badge hover:opacity-80 transition-opacity">{top.hts_code}</a>
                         ) : s.status === "error" ? (
                           <span className="text-xs text-red-500">Error</span>
                         ) : (

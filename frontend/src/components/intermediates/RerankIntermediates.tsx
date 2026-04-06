@@ -40,7 +40,7 @@ export default function RerankIntermediatesPanel({
                   <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-500 font-semibold flex items-center justify-center flex-shrink-0">
                     {r.rank}
                   </span>
-                  <span className="hts-badge">{r.hts_code}</span>
+                  <a href={`https://hts.usitc.gov/search?query=${r.hts_code}`} target="_blank" rel="noopener noreferrer" className="hts-badge hover:opacity-80 transition-opacity">{r.hts_code}</a>
                   <span className="flex-1 min-w-0 truncate text-slate-600">
                     {r.description}
                   </span>
@@ -70,7 +70,7 @@ export default function RerankIntermediatesPanel({
                     <span className="w-5 h-5 rounded-full bg-purple-100 text-purple-700 font-semibold flex items-center justify-center flex-shrink-0">
                       {r.rank}
                     </span>
-                    <span className="hts-badge">{r.hts_code}</span>
+                    <a href={`https://hts.usitc.gov/search?query=${r.hts_code}`} target="_blank" rel="noopener noreferrer" className="hts-badge hover:opacity-80 transition-opacity">{r.hts_code}</a>
                     <span className="flex-1 min-w-0 truncate text-slate-600">
                       {r.description}
                     </span>

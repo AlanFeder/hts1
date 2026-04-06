@@ -85,7 +85,18 @@ function ResultRow({
     <tr className="hover:bg-slate-50 transition-colors group">
       <td className="py-3 pr-4 text-slate-400 font-mono text-xs">{rank}</td>
       <td className="py-3 pr-4">
-        <span className="hts-badge">{result.hts_code || "—"}</span>
+        {result.hts_code ? (
+          <a
+            href={`https://hts.usitc.gov/search?query=${result.hts_code}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hts-badge hover:opacity-80 transition-opacity"
+          >
+            {result.hts_code}
+          </a>
+        ) : (
+          <span className="hts-badge">—</span>
+        )}
       </td>
       <td className="py-3 pr-4">
         <span className="text-slate-800 font-medium leading-snug">
