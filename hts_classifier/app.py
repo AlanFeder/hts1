@@ -15,6 +15,7 @@ from .core.config import settings
 from .data.loader import fetch_hts_data
 from .data.processor import load_or_process
 from .services.vector_store import COLLECTION_LEAF, COLLECTION_PATH, VectorStore
+from .services.vertex import embed_query
 
 
 def _configure_logging() -> None:
@@ -52,6 +53,9 @@ async def lifespan(app: FastAPI):
         leaf_store.count,
         path_store.count,
     )
+
+    await embed_query("warmup")
+    logger.info("Vertex AI client warmed up")
 
     app.state.vector_store = vector_store
     app.state.classifiers = {
