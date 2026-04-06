@@ -3,50 +3,50 @@
 @tailwind utilities;
 
 @layer base {
-  body {
-    @apply bg-slate-50 text-slate-900 antialiased;
-  }
+	body {
+		@apply bg-slate-50 text-slate-900 antialiased;
+	}
 
-  ::-webkit-scrollbar {
-    @apply w-1.5 h-1.5;
-  }
-  ::-webkit-scrollbar-track {
-    @apply bg-slate-100;
-  }
-  ::-webkit-scrollbar-thumb {
-    @apply bg-slate-300 rounded-full;
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    @apply bg-slate-400;
-  }
+	::-webkit-scrollbar {
+		@apply w-1.5 h-1.5;
+	}
+	::-webkit-scrollbar-track {
+		@apply bg-slate-100;
+	}
+	::-webkit-scrollbar-thumb {
+		@apply bg-slate-300 rounded-full;
+	}
+	::-webkit-scrollbar-thumb:hover {
+		@apply bg-slate-400;
+	}
 }
 
 @layer components {
-  .hts-badge {
-    @apply font-mono text-xs font-medium px-2 py-0.5 rounded bg-navy-700 text-white tracking-wider;
-  }
+	.hts-badge {
+		@apply font-mono text-xs font-medium px-2 py-0.5 rounded bg-navy-700 text-white tracking-wider;
+	}
 
-  .score-bar {
-    @apply h-1.5 rounded-full bg-blue-500;
-  }
+	.score-bar {
+		@apply h-1.5 rounded-full bg-blue-500;
+	}
 
-  .method-pill {
-    @apply inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all cursor-pointer;
-  }
+	.method-pill {
+		@apply inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all cursor-pointer;
+	}
 
-  .method-pill.active {
-    @apply text-white border-transparent shadow-sm;
-  }
+	.method-pill.active {
+		@apply text-white border-transparent shadow-sm;
+	}
 
-  .method-pill.inactive {
-    @apply bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50;
-  }
+	.method-pill.inactive {
+		@apply bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50;
+	}
 
-  .card {
-    @apply bg-white rounded-xl border border-slate-200 shadow-sm;
-  }
+	.card {
+		@apply bg-white rounded-xl border border-slate-200 shadow-sm;
+	}
 
-  .section-label {
-    @apply text-xs font-semibold uppercase tracking-widest text-slate-400;
-  }
+	.section-label {
+		@apply text-xs font-semibold uppercase tracking-widest text-slate-400;
+	}
 }
