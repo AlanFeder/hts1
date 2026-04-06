@@ -22,6 +22,10 @@ Production build: `npm run build` → `frontend/dist/`
 
 **Visual language:** Deep navy header evoking a federal agency context, white content cards on a slate background, gold accent for highlighting. Monospace fonts for HTS codes and scores. No decorative clutter.
 
+**Disclaimer:** The header includes an amber "Unofficial tool · Not affiliated with USITC" notice with a link to the official USITC site. The footer credits "Developed by Alan Feder" and "Assisted by Claude Code".
+
+**Non-indexable:** `frontend/public/robots.txt` disallows all crawlers; `index.html` includes `<meta name="robots" content="noindex, nofollow">`.
+
 **Fonts:**
 - Inter (UI text, labels)
 - JetBrains Mono (HTS codes, scores, raw LLM output)
@@ -87,22 +91,25 @@ Three-step flow:
 
 Four cards, one per method. Each shows:
 - Method color dot
-- Method label
-- One-sentence description of how it works
+- Method label (short, e.g. "Vector similarity search")
+- ⓘ icon — hover to reveal a 2-paragraph tooltip with a full explanation of the method
+- Short tagline below the label
 
 Selecting a method reveals its advanced parameter (if any):
-- `embeddings` → `path_weight` (0.0–1.0 or blank for avg collection)
+- `embeddings` → `path_weight` slider (0.0 = item description only, 1.0 = full path; default 1.0)
 - `rerank` → `candidate_pool` (default 20)
 - `agentic` → `beam_width` (default 3)
+
+The `path_weight` slider label updates dynamically, e.g. "70% description · 30% path".
 
 #### Results Table
 
 | Column | Notes |
 |---|---|
 | # | 1-indexed rank |
-| HTS Code | Navy badge, monospace |
+| HTS Code | Navy badge, links to `https://hts.usitc.gov/search?query=<code>` |
 | Description | Full HTS description text |
-| Path | Last 3 ancestors shown as breadcrumb (hidden on small screens) |
+| Path | Full ancestor path as breadcrumb (all levels, hidden on small screens) |
 | Score | Horizontal bar + numeric value (0–1) |
 | Tariff | `general_rate` from HTS data |
 
@@ -130,7 +137,8 @@ Appears as soon as any method responds. Shows:
 
 Each card has:
 - Colored header (method color) showing method name, elapsed time, cost
-- Compact results table (no path breadcrumb, no tariff column)
+- Compact results table (no tariff column; path shown inline below description)
+- HTS code badges are linked to USITC
 - Click the header to expand **Method Internals** inline
 
 ---
