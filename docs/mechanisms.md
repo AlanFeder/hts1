@@ -1,10 +1,10 @@
 # Classifier Mechanisms
 
-All four methods share the same API contract (`POST /classify`) and return the same `ClassifyResponse` shape.
+Four backend methods share the same API contract (`POST /classify`) and return the same `ClassifyResponse` shape. Three are exposed in the frontend UI (Basic Semantic Search, LLM Rerank, GAR); the agentic method is backend-only.
 
 ---
 
-## Method 1: Embeddings (`embeddings`)
+## Method 1: Basic Semantic Search (`embeddings`)
 
 **File:** `hts_classifier/classifiers/embeddings.py`
 
@@ -42,11 +42,41 @@ Embedding only — no LLM call. Approximate: `$0.000025 / 1K chars` for the quer
 - `raw_scores` — cosine similarity for each result
 
 ### When to use
-Fast and cheap. Good baseline. Works best when the query description is semantically close to HTS language. Use `path_weight=0.7`–`1.0` when the query is more about category/context than a specific item.
+Fast and cheap. Good baseline. Works best when the query description is semantically close to HTS language. The frontend always uses `path_weight=1.0` (full ancestor path embedding).
 
 ---
 
-## Method 2: GAR — Generative Augmented Retrieval (`gar`)
+## Method 2: LLM Rerank (`rerank`)
+
+**File:** `hts_classifier/classifiers/rerank.py`
+
+### How it works
+Two-stage: broad retrieval, then precise ranking.
+
+1. **Retrieval**: Embed the query and fetch `candidate_pool` candidates from ChromaDB (default 20)
+2. **Reranking**: Show all candidates to Gemini Flash Lite with the original query. Ask it to rerank by relevance. Return top-k from the reranked list.
+
+### Configuration
+- `candidate_pool`: number of candidates retrieved before reranking (default 20, settable via API)
+
+### Cost
+One embedding call + one LLM call. Both tracked in `cost_usd`.
+
+### Why this works better than embeddings alone
+Embedding retrieval has good *recall* (right answer usually in top 20) but imperfect *precision* (top 1 isn't always correct). The LLM reranker applies deeper reasoning to promote the genuinely best match.
+
+### Intermediates logged
+- `candidate_pool`: number of candidates retrieved
+- `initial_ranking`: original embedding scores before reranking
+- `llm_raw_response`: raw LLM output before parsing
+- `reranked_ranking`: final HTS codes in reranked order
+
+### When to use
+When you want the best accuracy and can afford one extra LLM call. Good default for production use.
+
+---
+
+## Method 3: GAR — Generative Augmented Retrieval (`gar`)
 
 **File:** `hts_classifier/classifiers/gar.py`
 
@@ -72,7 +102,7 @@ When the query uses consumer/colloquial language and the target HTS descriptions
 
 ---
 
-## Method 3: Agentic (`agentic`)
+## Method 4: Agentic (`agentic`) — backend only, not in frontend UI
 
 **File:** `hts_classifier/classifiers/agentic.py`
 
@@ -105,47 +135,17 @@ Complex or ambiguous descriptions where navigating the hierarchy matters. Most e
 
 ---
 
-## Method 4: Rerank (`rerank`)
-
-**File:** `hts_classifier/classifiers/rerank.py`
-
-### How it works
-Two-stage: broad retrieval, then precise ranking.
-
-1. **Retrieval**: Embed the query and fetch `candidate_pool` candidates from ChromaDB (default 20)
-2. **Reranking**: Show all candidates to Gemini Flash Lite with the original query. Ask it to rerank by relevance. Return top-k from the reranked list.
-
-### Configuration
-- `candidate_pool`: number of candidates retrieved before reranking (default 20, settable via API)
-
-### Cost
-One embedding call + one LLM call. Both tracked in `cost_usd`.
-
-### Why this works better than embeddings alone
-Embedding retrieval has good *recall* (right answer usually in top 20) but imperfect *precision* (top 1 isn't always correct). The LLM reranker applies deeper reasoning to promote the genuinely best match.
-
-### Intermediates logged
-- `candidate_pool`: number of candidates retrieved
-- `initial_ranking`: original embedding scores before reranking
-- `llm_raw_response`: raw LLM output before parsing
-- `reranked_ranking`: final HTS codes in reranked order
-
-### When to use
-When you want the best accuracy and can afford one extra LLM call. Good default for production use.
-
----
-
 ## API parameters
 
 ```json
 POST /classify
 {
   "description": "16 inch MacBook Pro",
-  "method": "embeddings",       // "embeddings" | "gar" | "agentic" | "rerank"
+  "method": "embeddings",       // "embeddings" | "rerank" | "gar" | "agentic"
   "top_k": 5,
-  "path_weight": null,          // embeddings only: 0.0–1.0 or null
+  "path_weight": null,          // embeddings only: 0.0–1.0 or null (frontend always sends 1.0)
   "candidate_pool": null,       // rerank only: retrieval pool size (default 20)
-  "beam_width": null            // agentic only: overrides BEAM_WIDTH env var
+  "beam_width": null            // agentic only (backend API): overrides BEAM_WIDTH env var
 }
 ```
 
@@ -177,9 +177,9 @@ Warnings are logged (but not errors) if method-specific parameters are sent with
 
 ## Comparison
 
-| | Speed | LLM calls | Cost (approx) | Best for |
-|---|---|---|---|---|
-| `embeddings` | Fast | 0 | <$0.00001 | Quick baseline, high volume |
-| `gar` | Medium | 1 | ~$0.0001 | Consumer terms → trade language |
-| `agentic` | Slow | 4–8 | $0.001–0.010 | Complex/ambiguous, needs audit trail |
-| `rerank` | Medium | 1 | ~$0.0002 | Best single-call accuracy |
+| | Display name | Speed | LLM calls | Cost (approx) | Best for | Frontend |
+|---|---|---|---|---|---|---|
+| `embeddings` | Basic Semantic Search | Fast | 0 | <$0.00001 | Quick baseline, high volume | ✓ |
+| `rerank` | LLM Rerank | Medium | 1 | ~$0.0002 | Best single-call accuracy | ✓ |
+| `gar` | GAR | Medium | 1 | ~$0.0001 | Consumer terms → trade language | ✓ |
+| `agentic` | — | Slow | 4–8 | $0.001–0.010 | Complex/ambiguous, needs audit trail | API only |

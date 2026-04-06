@@ -117,10 +117,10 @@ hts_classifier/
 │   └── vector_store.py         ChromaDB wrapper (COLLECTION_AVG/LEAF/PATH constants)
 ├── classifiers/
 │   ├── base.py                 BaseClassifier ABC
-│   ├── embeddings.py           Method 1: cosine similarity, supports path_weight
-│   ├── gar.py                  Method 2: LLM term expansion + BM25
-│   ├── agentic.py              Method 3: explore/finalize tree traversal
-│   └── rerank.py               Method 4: embeddings retrieval + LLM rerank
+│   ├── embeddings.py           Basic Semantic Search: cosine similarity, path_weight=1.0 in frontend
+│   ├── rerank.py               LLM Rerank: embeddings retrieval + LLM rerank
+│   ├── gar.py                  GAR: LLM term expansion + BM25
+│   └── agentic.py              Agentic: explore/finalize tree traversal (backend API only)
 └── api/routes/
     ├── classify.py             POST /classify — times request, sets elapsed_ms
     └── health.py               GET /health
@@ -139,13 +139,12 @@ frontend/
         ├── ClassifyForm.tsx    Description input, method cards, advanced params
         ├── ResultsTable.tsx    HTS results table (full + compact variants)
         ├── SingleView.tsx      Single-method classify flow
-        ├── CompareView.tsx     Parallel four-method comparison
+        ├── CompareView.tsx     Parallel three-method comparison
         └── intermediates/      Per-method internals panels
             ├── IntermediatesPanel.tsx
             ├── EmbeddingsIntermediates.tsx
-            ├── GarIntermediates.tsx
             ├── RerankIntermediates.tsx
-            └── AgenticIntermediates.tsx
+            └── GarIntermediates.tsx
 docs/
 ├── frontend.md                 Frontend architecture, components, design system
 ├── mechanisms.md               How each classifier works + API reference

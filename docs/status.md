@@ -35,19 +35,18 @@ Last updated: 2026-04-06
 
 ### What's done — frontend (React/Vite)
 - **Classify tab**: single-method flow with form, results table, method internals panel
-- **Compare tab**: all 4 methods run in parallel; summary bars for time + cost; per-method expandable cards
+- **Compare tab**: 3 methods run in parallel; summary bars for time + cost; per-method expandable cards (1×3 grid)
+- Three methods exposed: Basic Semantic Search (embeddings, full-path), LLM Rerank, GAR
 - Method-specific intermediates panels:
-  - Embeddings: embedding stats, cosine similarity bars
+  - Basic Semantic Search: embedding stats, cosine similarity bars
+  - LLM Rerank: side-by-side initial vs. reranked with rank movement indicators
   - GAR: expanded term chips, BM25 score bars, raw LLM response toggle
-  - Rerank: side-by-side initial vs. reranked with rank movement indicators
-  - Agentic: collapsible beam trace (chapter selection → depth steps → final ranking)
+- Embeddings always uses `path_weight=1` (full ancestor path) — no slider exposed
 - Professional government-tech design (navy/gold palette, Inter + JetBrains Mono fonts)
 - TypeScript strict mode, zero type errors
 
 ### Pending
-- Manual testing of all 4 methods on representative queries to compare quality
-- Evaluate best `path_weight` values for embeddings
-- Evaluate agentic accuracy now that explore/finalize redesign is in
+- Manual testing of all 3 frontend methods on representative queries to compare quality
 
 ## Ingest details
 

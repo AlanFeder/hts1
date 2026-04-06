@@ -35,13 +35,12 @@ Production build: `npm run build` → `frontend/dist/`
 | Token | Role |
 |---|---|
 | `navy-*` | Header, primary buttons, HTS code badges |
-| `gold-*` | Accent highlight (cost bars, agentic final step) |
-| `blue-*` | Embeddings method, score bars, focus rings |
-| `emerald-*` | GAR method, BM25 bars, finalized nodes |
-| `purple-*` | Rerank method, reranked ranking cards |
-| `amber-*` | Agentic method, final ranking step |
+| `gold-*` | Accent highlight (cost bars) |
+| `blue-*` | Basic Semantic Search method, score bars, focus rings |
+| `purple-*` | LLM Rerank method, reranked ranking cards |
+| `emerald-*` | GAR method, BM25 bars |
 
-Each of the four classification methods has a consistent color identity used across method selectors, result cards, bars, and intermediates panels.
+Each of the three classification methods has a consistent color identity used across method selectors, result cards, bars, and intermediates panels.
 
 ---
 
@@ -71,8 +70,7 @@ frontend/
             ├── IntermediatesPanel.tsx     Router — dispatches to method-specific panel
             ├── EmbeddingsIntermediates.tsx
             ├── GarIntermediates.tsx
-            ├── RerankIntermediates.tsx
-            └── AgenticIntermediates.tsx
+            └── RerankIntermediates.tsx
 ```
 
 ---
@@ -89,18 +87,16 @@ Three-step flow:
 
 #### Method Selector
 
-Four cards, one per method. Each shows:
+Three cards, one per method, in order: Basic Semantic Search, LLM Rerank, GAR. Each shows:
 - Method color dot
-- Method label (short, e.g. "Vector similarity search")
+- Method label
 - ⓘ icon — hover to reveal a 2-paragraph tooltip with a full explanation of the method
 - Short tagline below the label
 
 Selecting a method reveals its advanced parameter (if any):
-- `embeddings` → `path_weight` slider (0.0 = item description only, 1.0 = full path; default 1.0)
 - `rerank` → `candidate_pool` (default 20)
-- `agentic` → `beam_width` (default 3)
 
-The `path_weight` slider label updates dynamically, e.g. "70% description · 30% path".
+Embeddings always uses `path_weight=1` (full path) — no UI control exposed.
 
 #### Results Table
 
@@ -119,7 +115,7 @@ A meta-chips row above the table shows: method, elapsed time (ms), cost (USD), r
 
 ### Compare Methods
 
-Fires all four classifiers in parallel for a single description, then shows results side-by-side.
+Fires all three classifiers in parallel for a single description, then shows results side-by-side.
 
 #### Summary Section
 
@@ -133,7 +129,7 @@ Appears as soon as any method responds. Shows:
 
 **Top Result Table** — one row per method showing its #1 result (HTS code + description + score). Placeholder skeletons while loading.
 
-#### Per-Method Cards (2×2 grid)
+#### Per-Method Cards (1×3 grid on large screens)
 
 Each card has:
 - Colored header (method color) showing method name, elapsed time, cost
@@ -163,20 +159,6 @@ Each card has:
   - Left: initial embedding ranking (score shown)
   - Right: after LLM rerank — shows rank movement indicator (`▲N` green / `▼N` red)
 - **Raw LLM response toggle**
-
-### Agentic
-
-Collapsible beam trace — one accordion row per step:
-
-| Step type | Indicator | Content |
-|---|---|---|
-| `chapter_selection` | Navy dot | Selected chapter codes as pills |
-| `depth_N` | Slate dot | Explored nodes (blue) + Finalized nodes (emerald) in separate lists |
-| `final_ranking` | Gold dot | Final selected node descriptions |
-
-Each row header shows a quick summary (chapters selected / nodes explored+finalized count) without opening it. Raw LLM response collapsible inside each row.
-
-The first step is open by default.
 
 ---
 
@@ -252,8 +234,9 @@ Allows the Vite dev server (5173) and preview server (4173) to call the API dire
 ## Adding a New Method to the Frontend
 
 1. **`src/types.ts`** — Add the method literal to `Method`, add an entry to `METHOD_META` with `label`, `color`, `bg`, `border`, `dot` Tailwind classes, and add a typed `*Intermediates` interface.
-2. **`src/components/ClassifyForm.tsx`** — Add the method to `METHODS` and `METHOD_DESCRIPTIONS`. Add any method-specific param input in the advanced params block.
+2. **`src/components/ClassifyForm.tsx`** — Add the method to `METHODS`, `METHOD_SHORT`, and `METHOD_TOOLTIP`. Add any method-specific param input in the advanced params block.
 3. **`src/components/intermediates/`** — Create `YourMethodIntermediates.tsx`.
 4. **`src/components/intermediates/IntermediatesPanel.tsx`** — Add a `case` for the new method.
+5. **`src/components/CompareView.tsx`** — Add the method to `METHODS` and the initial `states` object.
 
-The CompareView and ResultsTable require no changes — they iterate over `METHODS` dynamically.
+The ResultsTable requires no changes — it is method-agnostic.

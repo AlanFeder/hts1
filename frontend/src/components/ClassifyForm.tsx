@@ -8,18 +8,18 @@ interface Props {
   defaultDescription?: string;
 }
 
-const METHODS: Method[] = ["embeddings", "gar", "rerank", "agentic"];
+const METHODS: Method[] = ["embeddings", "rerank", "gar"];
 
 const METHOD_SHORT: Record<Method, string> = {
   embeddings: "Vector similarity search",
-  gar: "Keyword expansion + BM25",
+  gar: "LLM keyword expansion + search",
   rerank: "Retrieve, then re-rank",
   agentic: "Tree traversal with LLM",
 };
 
 const METHOD_TOOLTIP: Record<Method, string> = {
   embeddings:
-    "Converts your description into a numeric vector using Google's text-embedding-005 model, then finds the closest HTS entries by cosine similarity in a pre-built ChromaDB index.\n\nNo LLM call is made — this is the fastest and cheapest method. Results are best when your description uses trade-style language similar to HTS text. Adjust Path Weight (0–1) to blend leaf-description vs. full-path embeddings.",
+    "Converts your description into a numeric vector using Google's text-embedding-005 model, then finds the closest HTS entries by cosine similarity in a pre-built ChromaDB index.\n\nNo LLM call is made — this is the fastest and cheapest method. Results are best when your description uses trade-style language similar to HTS text.",
   gar:
     "Sends your description to Gemini and asks it to generate 5 alternative HTS-style search phrases (e.g. \"iPhone\" → \"telephone sets for cellular networks\"). All phrases are combined and scored against HTS entries using BM25 keyword matching.\n\nBest when your description uses consumer or colloquial language that wouldn't appear verbatim in HTS text. One LLM call; moderate cost.",
   rerank:
@@ -32,9 +32,7 @@ export default function ClassifyForm({ onSubmit, loading, defaultDescription = "
   const [description, setDescription] = useState(defaultDescription);
   const [method, setMethod] = useState<Method>("embeddings");
   const [topK, setTopK] = useState(5);
-  const [pathWeight, setPathWeight] = useState<string>("1");
   const [candidatePool, setCandidatePool] = useState<string>("");
-  const [beamWidth, setBeamWidth] = useState<string>("");
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -43,9 +41,9 @@ export default function ClassifyForm({ onSubmit, loading, defaultDescription = "
       description: description.trim(),
       method,
       top_k: topK,
-      path_weight: method === "embeddings" ? parseFloat(pathWeight) : null,
+      path_weight: method === "embeddings" ? 1 : null,
       candidate_pool: method === "rerank" && candidatePool !== "" ? parseInt(candidatePool) : null,
-      beam_width: method === "agentic" && beamWidth !== "" ? parseInt(beamWidth) : null,
+      beam_width: null,
     });
   }
 
@@ -70,7 +68,7 @@ export default function ClassifyForm({ onSubmit, loading, defaultDescription = "
         <label className="block text-sm font-semibold text-slate-700 mb-2">
           Classification Method
         </label>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {METHODS.map((m) => {
             const meta = METHOD_META[m];
             const active = method === m;
@@ -141,36 +139,6 @@ export default function ClassifyForm({ onSubmit, loading, defaultDescription = "
           />
         </div>
 
-        {method === "embeddings" && (
-          <div className="w-64">
-            <div className="flex justify-between items-baseline mb-1">
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                Search by
-              </label>
-              <span className="text-xs font-mono text-blue-600 font-semibold">
-                {pathWeight === "0"
-                  ? "100% item description"
-                  : pathWeight === "1"
-                  ? "100% full path"
-                  : `${Math.round((1 - parseFloat(pathWeight)) * 100)}% description · ${Math.round(parseFloat(pathWeight) * 100)}% path`}
-              </span>
-            </div>
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.1}
-              value={pathWeight}
-              onChange={(e) => setPathWeight(e.target.value)}
-              className="w-full accent-blue-600"
-            />
-            <div className="flex justify-between text-[10px] text-slate-400 mt-0.5">
-              <span>Item description</span>
-              <span>Full path</span>
-            </div>
-          </div>
-        )}
-
         {method === "rerank" && (
           <div className="w-36">
             <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">
@@ -185,26 +153,6 @@ export default function ClassifyForm({ onSubmit, loading, defaultDescription = "
               value={candidatePool}
               onChange={(e) => setCandidatePool(e.target.value)}
               placeholder="20"
-              className="w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-        )}
-
-        {method === "agentic" && (
-          <div className="w-36">
-            <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">
-              Beam Width{" "}
-              <span className="text-slate-400 normal-case font-normal">
-                (default 3)
-              </span>
-            </label>
-            <input
-              type="number"
-              min={1}
-              max={10}
-              value={beamWidth}
-              onChange={(e) => setBeamWidth(e.target.value)}
-              placeholder="3"
               className="w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>

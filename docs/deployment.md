@@ -109,7 +109,7 @@ On service start, the app:
 2. Connects to ChromaDB (~2s)
 3. Runs a warmup embed call to pre-initialize the Vertex AI client (~2s)
 
-Total cold start: ~5–7 seconds. After that, embeddings requests are fast; LLM-based methods (GAR, rerank, agentic) depend on Vertex AI latency.
+Total cold start: ~5–7 seconds. After that, Basic Semantic Search requests are fast; LLM-based methods (LLM Rerank, GAR) depend on Vertex AI latency.
 
 ---
 

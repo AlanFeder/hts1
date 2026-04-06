@@ -5,7 +5,7 @@ import { METHOD_META } from "../types";
 import ResultsTable from "./ResultsTable";
 import IntermediatesPanel from "./intermediates/IntermediatesPanel";
 
-const METHODS: Method[] = ["embeddings", "gar", "rerank", "agentic"];
+const METHODS: Method[] = ["embeddings", "rerank", "gar"];
 
 export default function CompareView() {
   const [description, setDescription] = useState("");
@@ -30,11 +30,11 @@ export default function CompareView() {
     if (!description.trim() || anyLoading) return;
     setExpanded(null);
 
-    // Fire all 4 in parallel
+    // Fire all methods in parallel
     METHODS.forEach((method) => {
       const startedAt = performance.now();
       setMethodState(method, { status: "loading", startedAt });
-      classify({ description: description.trim(), method, top_k: topK })
+      classify({ description: description.trim(), method, top_k: topK, path_weight: method === "embeddings" ? 1 : null })
         .then((data) => {
           const clientMs = performance.now() - startedAt;
           setMethodState(method, { status: "success", data, clientMs });
@@ -289,7 +289,7 @@ export default function CompareView() {
 
       {/* Per-method expandable result cards */}
       {anyDone && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {METHODS.map((method) => {
             const s = states[method];
             const meta = METHOD_META[method];

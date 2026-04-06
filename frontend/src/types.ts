@@ -91,21 +91,21 @@ export const METHOD_META: Record<
   { label: string; color: string; bg: string; border: string; dot: string }
 > = {
   embeddings: {
-    label: "Embeddings",
+    label: "Basic Semantic Search",
     color: "text-blue-700",
     bg: "bg-blue-50",
     border: "border-blue-200",
     dot: "bg-blue-500",
   },
   gar: {
-    label: "GAR + BM25",
+    label: "GAR",
     color: "text-emerald-700",
     bg: "bg-emerald-50",
     border: "border-emerald-200",
     dot: "bg-emerald-500",
   },
   rerank: {
-    label: "Rerank",
+    label: "LLM Rerank",
     color: "text-purple-700",
     bg: "bg-purple-50",
     border: "border-purple-200",
