@@ -32,7 +32,7 @@ export default function ClassifyForm({ onSubmit, loading, defaultDescription = "
   const [description, setDescription] = useState(defaultDescription);
   const [method, setMethod] = useState<Method>("embeddings");
   const [topK, setTopK] = useState(5);
-  const [pathWeight, setPathWeight] = useState<string>("");
+  const [pathWeight, setPathWeight] = useState<string>("1");
   const [candidatePool, setCandidatePool] = useState<string>("");
   const [beamWidth, setBeamWidth] = useState<string>("");
 
@@ -43,7 +43,7 @@ export default function ClassifyForm({ onSubmit, loading, defaultDescription = "
       description: description.trim(),
       method,
       top_k: topK,
-      path_weight: method === "embeddings" && pathWeight !== "" ? parseFloat(pathWeight) : null,
+      path_weight: method === "embeddings" ? parseFloat(pathWeight) : null,
       candidate_pool: method === "rerank" && candidatePool !== "" ? parseInt(candidatePool) : null,
       beam_width: method === "agentic" && beamWidth !== "" ? parseInt(beamWidth) : null,
     });
@@ -142,23 +142,32 @@ export default function ClassifyForm({ onSubmit, loading, defaultDescription = "
         </div>
 
         {method === "embeddings" && (
-          <div className="w-36">
-            <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">
-              Path Weight{" "}
-              <span className="text-slate-400 normal-case font-normal">
-                (0–1, blank=avg)
+          <div className="w-64">
+            <div className="flex justify-between items-baseline mb-1">
+              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                Search by
+              </label>
+              <span className="text-xs font-mono text-blue-600 font-semibold">
+                {pathWeight === "0"
+                  ? "100% item description"
+                  : pathWeight === "1"
+                  ? "100% full path"
+                  : `${Math.round((1 - parseFloat(pathWeight)) * 100)}% description · ${Math.round(parseFloat(pathWeight) * 100)}% path`}
               </span>
-            </label>
+            </div>
             <input
-              type="number"
+              type="range"
               min={0}
               max={1}
               step={0.1}
               value={pathWeight}
               onChange={(e) => setPathWeight(e.target.value)}
-              placeholder="null"
-              className="w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full accent-blue-600"
             />
+            <div className="flex justify-between text-[10px] text-slate-400 mt-0.5">
+              <span>Item description</span>
+              <span>Full path</span>
+            </div>
           </div>
         )}
 

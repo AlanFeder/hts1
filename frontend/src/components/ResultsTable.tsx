@@ -91,6 +91,11 @@ function ResultRow({
         <span className="text-slate-800 font-medium leading-snug">
           {result.description}
         </span>
+        {compact && result.path && result.path.length > 0 && (
+          <div className="mt-1">
+            <Breadcrumb path={result.path} />
+          </div>
+        )}
       </td>
       {!compact && (
         <td className="py-3 pr-4 hidden lg:table-cell">
@@ -126,7 +131,7 @@ function ResultRow({
 }
 
 function Breadcrumb({ path }: { path: string[] }) {
-  const show = path.slice(-3);
+  const show = path;
   return (
     <div className="flex flex-wrap items-center gap-1">
       {show.map((p, i) => (
