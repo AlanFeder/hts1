@@ -151,6 +151,7 @@ docs/
 ├── mechanisms.md               How each classifier works + API reference
 ├── agentic_search.md           Agentic classifier design notes
 ├── hts_json_processing.md      HTS JSON structure and path-building algorithm
+├── deployment.md               Production deployment (GCP VM, nginx, systemd, SSL, deploy steps)
 └── status.md                   Current implementation status and curl examples
 ```
 

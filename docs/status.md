@@ -1,8 +1,18 @@
 # Project Status
 
-Last updated: 2026-04-05
+Last updated: 2026-04-06
 
-## Current state: backend + frontend complete
+## Current state: deployed at https://hts.alanfeder.com
+
+### What's done — deployment
+- Live at https://hts.alanfeder.com (GCP e2-micro, us-central1-a)
+- nginx serving static frontend + reverse proxying `/classify` to FastAPI
+- systemd service (`hts.service`) — auto-starts on reboot, 2 uvicorn workers, no reload
+- Let's Encrypt SSL cert (auto-renewing)
+- Namecheap DNS A record pointing to VM IP
+- Warmup embed call at startup so first request isn't slow
+- Not indexed (robots.txt + noindex meta)
+- See `docs/deployment.md` for full details and deploy instructions
 
 ### What's done — backend (Python/FastAPI)
 - All 4 classifiers implemented: `embeddings`, `gar`, `agentic`, `rerank`
