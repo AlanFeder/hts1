@@ -36,6 +36,7 @@ export default function ClassifyForm({
 	const [method, setMethod] = useState<Method>("embeddings");
 	const [topK, setTopK] = useState(5);
 	const [candidatePool, setCandidatePool] = useState<string>("");
+	const [numTerms, setNumTerms] = useState<string>("");
 
 	function handleSubmit(e: React.FormEvent) {
 		e.preventDefault();
@@ -50,6 +51,10 @@ export default function ClassifyForm({
 					? parseInt(candidatePool, 10)
 					: null,
 			beam_width: null,
+			num_terms:
+				method === "gar" && numTerms !== ""
+					? parseInt(numTerms, 10)
+					: null,
 		});
 	}
 
@@ -178,6 +183,30 @@ export default function ClassifyForm({
 							value={candidatePool}
 							onChange={(e) => setCandidatePool(e.target.value)}
 							placeholder="20"
+							className="w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+						/>
+					</div>
+				)}
+
+				{method === "gar" && (
+					<div className="w-36">
+						<label
+							htmlFor="num-terms"
+							className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider"
+						>
+							Search Phrases{" "}
+							<span className="text-slate-400 normal-case font-normal">
+								(default 5)
+							</span>
+						</label>
+						<input
+							id="num-terms"
+							type="number"
+							min={1}
+							max={20}
+							value={numTerms}
+							onChange={(e) => setNumTerms(e.target.value)}
+							placeholder="5"
 							className="w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
 						/>
 					</div>

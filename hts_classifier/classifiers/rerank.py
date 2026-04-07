@@ -47,6 +47,7 @@ class RerankClassifier(BaseClassifier):
         path_weight: float | None = None,
         candidate_pool: int | None = None,
         beam_width: int | None = None,
+        num_terms: int | None = None,
     ) -> ClassifyResponse:
         pool = candidate_pool if candidate_pool is not None else self._candidate_pool
         logger.info(

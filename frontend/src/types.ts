@@ -15,6 +15,7 @@ export interface ClassifyRequest {
 	path_weight?: number | null;
 	candidate_pool?: number | null;
 	beam_width?: number | null;
+	num_terms?: number | null;
 }
 
 export interface ClassifyResponse {

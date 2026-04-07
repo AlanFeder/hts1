@@ -14,6 +14,7 @@ class ClassifyRequest(BaseModel):
         None  # rerank only: retrieval pool size before LLM rerank
     )
     beam_width: int | None = None  # agentic only: candidates kept at each tree level
+    num_terms: int | None = None  # gar only: number of LLM-expanded search phrases
 
 
 class HTSResult(BaseModel):

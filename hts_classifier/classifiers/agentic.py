@@ -148,6 +148,7 @@ class AgenticClassifier(BaseClassifier):
         path_weight: float | None = None,
         candidate_pool: int | None = None,
         beam_width: int | None = None,
+        num_terms: int | None = None,
     ) -> ClassifyResponse:
         bw = beam_width if beam_width is not None else self._beam_width
         logger.info(f"agentic | query={description!r} top_k={top_k} beam_width={bw}")

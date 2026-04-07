@@ -12,6 +12,7 @@ _PARAM_METHODS: dict[str, str] = {
     "path_weight": "embeddings",
     "candidate_pool": "rerank",
     "beam_width": "agentic",
+    "num_terms": "gar",
 }
 
 
@@ -36,6 +37,7 @@ async def classify(body: ClassifyRequest, request: Request) -> ClassifyResponse:
         path_weight=body.path_weight,
         candidate_pool=body.candidate_pool,
         beam_width=body.beam_width,
+        num_terms=body.num_terms,
     )
     response.elapsed_ms = (time.perf_counter() - t0) * 1000
     return response

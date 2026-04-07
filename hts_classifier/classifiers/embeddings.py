@@ -25,6 +25,7 @@ class EmbeddingsClassifier(BaseClassifier):
         path_weight: float | None = None,
         candidate_pool: int | None = None,
         beam_width: int | None = None,
+        num_terms: int | None = None,
     ) -> ClassifyResponse:
         logger.info(
             f"embeddings | query={description!r} top_k={top_k} path_weight={path_weight}"

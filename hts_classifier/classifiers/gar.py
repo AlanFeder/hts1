@@ -12,12 +12,14 @@ from .base import BaseClassifier
 
 _PROMPT = """You are an expert in HTS (Harmonized Tariff Schedule) tariff classification.
 
-Given a product description, generate 5 alternative search phrases that could help find this product in the HTS. Include technical/trade terms, material composition, function, and industry sector.
+Given a product description, generate {num_terms} alternative search phrases that could help find this product in the HTS. Include technical/trade terms, material composition, function, and industry sector.
 
 Product description: {description}
 
 Respond with ONLY a JSON array of strings, no explanation.
 Example: ["smartphones", "mobile phones", "telephone handsets", "wireless communication devices", "cellular telephones"]"""
+
+_DEFAULT_NUM_TERMS = 5
 
 
 class GARClassifier(BaseClassifier):
@@ -33,10 +35,12 @@ class GARClassifier(BaseClassifier):
         path_weight: float | None = None,
         candidate_pool: int | None = None,
         beam_width: int | None = None,
+        num_terms: int | None = None,
     ) -> ClassifyResponse:
-        logger.info(f"gar | query={description!r} top_k={top_k}")
+        n = num_terms or _DEFAULT_NUM_TERMS
+        logger.info(f"gar | query={description!r} top_k={top_k} num_terms={n}")
 
-        result = await generate_text(_PROMPT.format(description=description))
+        result = await generate_text(_PROMPT.format(description=description, num_terms=n))
         response = result.text
         logger.debug(
             f"gar | raw LLM response: {response} tokens={result.input_tokens}+{result.output_tokens} cost=${result.cost_usd:.6f}"
