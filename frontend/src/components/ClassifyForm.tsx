@@ -8,7 +8,7 @@ interface Props {
 	defaultDescription?: string;
 }
 
-const METHODS: Method[] = ["embeddings", "rerank", "gar"];
+const METHODS: Method[] = ["embeddings", "rerank", "gar", "agentic"];
 
 const METHOD_SHORT: Record<Method, string> = {
 	embeddings: "Vector similarity search",

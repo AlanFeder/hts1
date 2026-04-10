@@ -4,7 +4,7 @@ from typing import NamedTuple
 
 from google import genai
 from tqdm import tqdm
-from google.genai.types import EmbedContentConfig
+from google.genai.types import EmbedContentConfig, GenerateContentConfig, ThinkingConfig
 
 from ..core.config import settings
 
@@ -63,11 +63,17 @@ def _embed_batch_sync(texts: list[str], task_type: str) -> list[list[float]]:
     return [e.values or [] for e in response.embeddings]
 
 
-def _generate_sync(prompt: str) -> GenerateResult:
-    response = get_client().models.generate_content(
-        model=settings.generation_model,
-        contents=prompt,
-    )
+def _generate_sync(prompt: str, model: str | None = None, thinking_level: str | None = None) -> GenerateResult:
+    kwargs = {
+        "model": model or settings.generation_model,
+        "contents": prompt,
+    }
+    if thinking_level:
+        kwargs["config"] = GenerateContentConfig(
+            thinking_config=ThinkingConfig(thinking_level=thinking_level)
+        )
+        
+    response = get_client().models.generate_content(**kwargs)
     usage = response.usage_metadata
     return GenerateResult(
         text=response.text or "",
@@ -121,6 +127,6 @@ async def embed_query(text: str) -> list[float]:
     return results[0]
 
 
-async def generate_text(prompt: str) -> GenerateResult:
+async def generate_text(prompt: str, model: str | None = None, thinking_level: str | None = None) -> GenerateResult:
     loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(None, _generate_sync, prompt)
+    return await loop.run_in_executor(None, _generate_sync, prompt, model, thinking_level)

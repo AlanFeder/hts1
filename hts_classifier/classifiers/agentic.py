@@ -168,7 +168,9 @@ class AgenticClassifier(BaseClassifier):
                 description=description,
                 n=bw,
                 options="\n".join(chapter_lines),
-            )
+            ),
+            model="gemini-3-flash-preview",
+            thinking_level="low",
         )
         total_cost += ch_result.cost_usd
         selected_ch_codes = _parse_str_list(ch_result.text)
@@ -211,7 +213,9 @@ class AgenticClassifier(BaseClassifier):
                 _format_beam_node(i + 1, n) for i, n in enumerate(display_beam)
             )
             step_result = await generate_text(
-                _STEP_PROMPT.format(description=description, options=options)
+                _STEP_PROMPT.format(description=description, options=options),
+                model="gemini-3-flash-preview",
+                thinking_level="low",
             )
             total_cost += step_result.cost_usd
 
@@ -272,7 +276,9 @@ class AgenticClassifier(BaseClassifier):
                 f"{i + 1}. {_format_node(n)}" for i, n in enumerate(final_pool)
             )
             final_result = await generate_text(
-                _SELECT_PROMPT.format(description=description, n=top_k, options=options)
+                _SELECT_PROMPT.format(description=description, n=top_k, options=options),
+                model="gemini-3-flash-preview",
+                thinking_level="low",
             )
             total_cost += final_result.cost_usd
             indices = _parse_int_list(final_result.text)

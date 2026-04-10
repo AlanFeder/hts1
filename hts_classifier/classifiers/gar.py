@@ -12,7 +12,7 @@ from .base import BaseClassifier
 
 _PROMPT = """You are an expert in HTS (Harmonized Tariff Schedule) tariff classification.
 
-Given a product description, generate {num_terms} alternative search phrases that could help find this product in the HTS. Include technical/trade terms, material composition, function, and industry sector.
+Given a product description, generate {num_terms} alternative search phrases that could help find this product in the HTS. Include technical/trade terms, material composition, function, and industry sector. Consider the multiple meanings that the product description may have and output the terms in a way that covers the different meanings.
 
 Product description: {description}
 
@@ -40,7 +40,11 @@ class GARClassifier(BaseClassifier):
         n = num_terms or _DEFAULT_NUM_TERMS
         logger.info(f"gar | query={description!r} top_k={top_k} num_terms={n}")
 
-        result = await generate_text(_PROMPT.format(description=description, num_terms=n))
+        result = await generate_text(
+            _PROMPT.format(description=description, num_terms=n),
+            model="gemini-3.1-pro-preview",
+            thinking_level="low",
+        )
         response = result.text
         logger.debug(
             f"gar | raw LLM response: {response} tokens={result.input_tokens}+{result.output_tokens} cost=${result.cost_usd:.6f}"
