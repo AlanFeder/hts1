@@ -31,7 +31,7 @@ export default function App() {
 						<span>Developed by Alan Feder</span>
 						<span className="text-slate-300">·</span>
 						<span className="text-[10px] text-slate-300">
-							Assisted by Claude Code
+							Assisted by Claude Code and Antigravity
 						</span>
 					</span>
 				</div>
