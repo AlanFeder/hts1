@@ -12,6 +12,7 @@ Last updated: 2026-04-06
 - Namecheap DNS A record pointing to VM IP
 - Warmup embed call at startup so first request isn't slow
 - Not indexed (robots.txt + noindex meta)
+- Automated CI/CD deployments to VM via GitHub Actions
 - See `docs/deployment.md` for full details and deploy instructions
 
 ### What's done — backend (Python/FastAPI)
@@ -35,8 +36,8 @@ Last updated: 2026-04-06
 
 ### What's done — frontend (React/Vite)
 - **Classify tab**: single-method flow with form, results table, method internals panel
-- **Compare tab**: 3 methods run in parallel; summary bars for time + cost; per-method expandable cards (1×3 grid)
-- Three methods exposed: Basic Semantic Search (embeddings, full-path), LLM Rerank, GAR
+- **Compare tab**: 4 methods run in parallel; summary bars for time + cost; per-method expandable cards (1×4 grid)
+- Four methods exposed: Basic Semantic Search (embeddings, full-path), LLM Rerank, GAR, and Agentic
 - Method-specific intermediates panels:
   - Basic Semantic Search: embedding stats, cosine similarity bars
   - LLM Rerank: side-by-side initial vs. reranked with rank movement indicators

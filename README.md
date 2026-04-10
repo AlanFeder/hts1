@@ -53,10 +53,10 @@ GET /health
 ### `.env`
 ```
 GOOGLE_CLOUD_PROJECT=your-project-id
-GOOGLE_CLOUD_LOCATION=us-central1
+GOOGLE_CLOUD_LOCATION=global
 
 # Optional tuning
-GENERATION_MODEL=gemini-2.5-flash-lite     # default
+GENERATION_MODEL=gemini-2.5-flash-lite     # default fallback (GAR uses gemini-3.1-pro-preview, agentic uses gemini-3-flash-preview)
 EMBEDDING_MODEL=text-embedding-005         # default
 BEAM_WIDTH=3                               # agentic classifier beam width (default 3)
 ```

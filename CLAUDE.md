@@ -9,11 +9,11 @@ Python/FastAPI backend + React/Vite frontend.
 **Backend**
 - Python 3.11+, FastAPI, uv
 - Vertex AI via `google-genai` SDK (no API key — uses application default credentials)
-- Generation model: `gemini-2.5-flash-lite` (configurable via `GENERATION_MODEL` in .env)
+- Generation models: `gemini-3.1-pro-preview` (GAR), `gemini-3-flash-preview` (Agentic), and `gemini-2.5-flash-lite` (default fallback)
 - Embedding model: `text-embedding-005`
 - Vector store: ChromaDB (local persistent, 3 collections)
 - BM25: `rank-bm25` (used only in GAR classifier)
-- GCP project: `project-misc-1`, region: `us-central1`
+- GCP project: `project-misc-1`, Vertex AI region: `global`
 
 **Frontend** (see `docs/frontend.md` for full details)
 - React 18, Vite, TypeScript (strict)
@@ -120,7 +120,7 @@ hts_classifier/
 │   ├── embeddings.py           Basic Semantic Search: cosine similarity, path_weight=1.0 in frontend
 │   ├── rerank.py               LLM Rerank: embeddings retrieval + LLM rerank
 │   ├── gar.py                  GAR: LLM term expansion + BM25
-│   └── agentic.py              Agentic: explore/finalize tree traversal (backend API only)
+│   └── agentic.py              Agentic: explore/finalize tree traversal
 └── api/routes/
     ├── classify.py             POST /classify — times request, sets elapsed_ms
     └── health.py               GET /health

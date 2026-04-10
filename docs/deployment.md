@@ -33,25 +33,19 @@ gcloud compute ssh instance-20260405-210533 --zone=us-central1-a
 
 ## Deploying updates
 
-From your local Mac:
+Deployments are automated securely via GitHub Actions.
 
-```bash
-# 1. Sync changed source files (excludes data, venv, node_modules)
-rsync -av --exclude='data/chroma' --exclude='data/hts_raw.json' \
-  --exclude='data/hts_processed.json' --exclude='__pycache__' \
-  --exclude='.venv' --exclude='frontend/node_modules' \
-  ~/Documents/projects/hts_classifier/ \
-  alanfeder@34.170.120.101:~/hts_classifier/
+When code is pushed to the `main` branch, the `.github/workflows/deploy.yml` pipeline will trigger:
+1. It builds the frontend production bundle (`npm run build`).
+2. It recursively `rsync`s changes onto the VM over SSH.
+3. It restarts the `hts.service` systemd daemon to finalize changes.
 
-# 2. If frontend changed — rebuild locally first, then sync dist
-cd ~/Documents/projects/hts_classifier/frontend
-npm run build
-rsync -av frontend/dist/ alanfeder@34.170.120.101:~/hts_classifier/frontend/dist/
+To enable or rotate credentials for this pipeline:
+* Create an SSH key on your PC (`ssh-keygen`).
+* Add the public key to your VM's `~/.ssh/authorized_keys`.
+* Save the `GCP_SSH_HOST` (IP), `GCP_SSH_USER`, and `GCP_SSH_PRIVATE_KEY` blocks into GitHub repository Secrets.
 
-# 3. If backend Python changed — restart the service on the VM
-gcloud compute ssh instance-20260405-210533 --zone=us-central1-a
-sudo systemctl restart hts
-```
+If you ever need to manually deploy, see the workflow file for the equivalent commands.
 
 ---
 

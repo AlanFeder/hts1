@@ -22,7 +22,7 @@ Production build: `npm run build` → `frontend/dist/`
 
 **Visual language:** Deep navy header evoking a federal agency context, white content cards on a slate background, gold accent for highlighting. Monospace fonts for HTS codes and scores. No decorative clutter.
 
-**Disclaimer:** The header includes an amber "Unofficial tool · Not affiliated with USITC" notice with a link to the official USITC site. The footer credits "Developed by Alan Feder" and "Assisted by Claude Code".
+**Disclaimer:** The header includes an amber "Unofficial tool · Not affiliated with USITC" notice with a link to the official USITC site. The footer credits "Developed by Alan Feder" and "Assisted by Claude Code and Antigravity".
 
 **Non-indexable:** `frontend/public/robots.txt` disallows all crawlers; `index.html` includes `<meta name="robots" content="noindex, nofollow">`.
 
@@ -40,7 +40,7 @@ Production build: `npm run build` → `frontend/dist/`
 | `purple-*` | LLM Rerank method, reranked ranking cards |
 | `emerald-*` | GAR method, BM25 bars |
 
-Each of the three classification methods has a consistent color identity used across method selectors, result cards, bars, and intermediates panels.
+Each of the four classification methods has a consistent color identity used across method selectors, result cards, bars, and intermediates panels.
 
 ---
 
@@ -87,7 +87,7 @@ Three-step flow:
 
 #### Method Selector
 
-Three cards, one per method, in order: Basic Semantic Search, LLM Rerank, GAR. Each shows:
+Four cards, one per method, in order: Basic Semantic Search, LLM Rerank, GAR, Agentic. Each shows:
 - Method color dot
 - Method label
 - ⓘ icon — hover to reveal a 2-paragraph tooltip with a full explanation of the method
@@ -115,7 +115,7 @@ A meta-chips row above the table shows: method, elapsed time (ms), cost (USD), r
 
 ### Compare Methods
 
-Fires all three classifiers in parallel for a single description, then shows results side-by-side.
+Fires all four classifiers in parallel for a single description, then shows results side-by-side.
 
 #### Summary Section
 
@@ -129,7 +129,7 @@ Appears as soon as any method responds. Shows:
 
 **Top Result Table** — one row per method showing its #1 result (HTS code + description + score). Placeholder skeletons while loading.
 
-#### Per-Method Cards (1×3 grid on large screens)
+#### Per-Method Cards (1×4 grid on large screens)
 
 Each card has:
 - Colored header (method color) showing method name, elapsed time, cost

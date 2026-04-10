@@ -1,6 +1,6 @@
 # Classifier Mechanisms
 
-Four backend methods share the same API contract (`POST /classify`) and return the same `ClassifyResponse` shape. Three are exposed in the frontend UI (Basic Semantic Search, LLM Rerank, GAR); the agentic method is backend-only.
+Four backend methods share the same API contract (`POST /classify`) and return the same `ClassifyResponse` shape. All four are exposed in the frontend UI: Basic Semantic Search, LLM Rerank, GAR, and Agentic.
 
 ---
 
@@ -102,7 +102,7 @@ When the query uses consumer/colloquial language and the target HTS descriptions
 
 ---
 
-## Method 4: Agentic (`agentic`) — backend only, not in frontend UI
+## Method 4: Agentic (`agentic`)
 
 **File:** `hts_classifier/classifiers/agentic.py`
 
@@ -145,7 +145,7 @@ POST /classify
   "top_k": 5,
   "path_weight": null,          // embeddings only: 0.0–1.0 or null (frontend always sends 1.0)
   "candidate_pool": null,       // rerank only: retrieval pool size (default 20)
-  "beam_width": null            // agentic only (backend API): overrides BEAM_WIDTH env var
+  "beam_width": null            // agentic only: overrides BEAM_WIDTH env var
 }
 ```
 
@@ -182,4 +182,4 @@ Warnings are logged (but not errors) if method-specific parameters are sent with
 | `embeddings` | Basic Semantic Search | Fast | 0 | <$0.00001 | Quick baseline, high volume | ✓ |
 | `rerank` | LLM Rerank | Medium | 1 | ~$0.0002 | Best single-call accuracy | ✓ |
 | `gar` | GAR | Medium | 1 | ~$0.0001 | Consumer terms → trade language | ✓ |
-| `agentic` | — | Slow | 4–8 | $0.001–0.010 | Complex/ambiguous, needs audit trail | API only |
+| `agentic` | — | Slow | 4–8 | $0.001–0.010 | Complex/ambiguous, needs audit trail | Yes |

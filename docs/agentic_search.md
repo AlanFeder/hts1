@@ -70,7 +70,7 @@ The explore/finalize design:
 
 ## Cost structure
 
-Each request makes several LLM calls (all `gemini-2.5-flash-lite`):
+Each request makes several LLM calls (all `gemini-3-flash-preview` with `thinking_level="low"`):
 
 | Call | Tokens (approx) | When |
 |---|---|---|
