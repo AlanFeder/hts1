@@ -1,0 +1,57 @@
+name: Deploy to GCP VM
+
+on:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm install
+          npm run build
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.GCP_SSH_PRIVATE_KEY }}
+          SSH_HOST: ${{ secrets.GCP_SSH_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+
+      - name: Sync source files via rsync
+        env:
+          SSH_HOST: ${{ secrets.GCP_SSH_HOST }}
+          SSH_USER: ${{ secrets.GCP_SSH_USER }}
+        run: |
+          # Sync backend files (excluding ignore list)
+          rsync -avz --exclude '.git' \
+            --exclude 'data/chroma' --exclude 'data/hts_raw.json' --exclude 'data/hts_processed.json' \
+            --exclude '__pycache__' --exclude '.venv' \
+            --exclude 'frontend/node_modules' --exclude '.github' \
+            ./ ${SSH_USER}@${SSH_HOST}:~/hts_classifier/
+
+          # Sync built frontend dist
+          rsync -avz frontend/dist/ ${SSH_USER}@${SSH_HOST}:~/hts_classifier/frontend/dist/
+
+      - name: Restart hts systemd service
+        env:
+          SSH_HOST: ${{ secrets.GCP_SSH_HOST }}
+          SSH_USER: ${{ secrets.GCP_SSH_USER }}
+        run: |
+          ssh -o StrictHostKeyChecking=no ${SSH_USER}@${SSH_HOST} "sudo systemctl restart hts"
