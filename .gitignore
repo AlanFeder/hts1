@@ -215,7 +215,7 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-**/data/**/*.*
+data/**/*.*
 !.gitkeep
 # Node.js
 node_modules/
@@ -367,3 +367,5 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+.DS_Store
