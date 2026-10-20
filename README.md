@@ -78,9 +78,9 @@ uv run scripts/ingest.py
 
 Ingest is **resumable** — if it fails (e.g. rate limit), just re-run and it picks up where it left off.
 
-Embeddings are cached in `data/chroma/` across **3 collections**: avg, leaf, and path. To start fresh:
+Embeddings are cached in `data/vectors/` across **3 collections**: avg, leaf, and path. To start fresh:
 ```bash
-rm -rf data/chroma data/hts_raw.json data/hts_processed.json
+rm -rf data/vectors data/hts_raw.json data/hts_processed.json
 uv run scripts/ingest.py
 ```
 

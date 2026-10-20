@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     embedding_model: str = "text-embedding-005"
     generation_model: str = "gemini-2.5-flash-lite"
 
-    chroma_path: str = "data/chroma"
+    vector_path: str = "data/vectors"
     hts_raw_path: str = "data/hts_raw.json"
     hts_processed_path: str = "data/hts_processed.json"
 
