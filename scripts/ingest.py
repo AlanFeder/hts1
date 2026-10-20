@@ -1,5 +1,5 @@
 """
-One-time ingestion script: download HTS data, embed all entries, persist to ChromaDB.
+One-time ingestion script: download HTS data, embed all entries, persist to the local vector store.
 
 Usage:
     uv run scripts/ingest.py                  # full ingest (resumes if interrupted)
@@ -7,7 +7,7 @@ Usage:
     uv run scripts/ingest.py --chapters 84,85 # test run: specific chapters only
 
 Re-run whenever the HTS data is updated (delete data/hts_raw.json to force re-download).
-Delete data/chroma to force re-embedding from scratch.
+Delete data/vectors to force re-embedding from scratch.
 """
 
 import argparse
@@ -50,7 +50,7 @@ async def ingest_chunk(
     leaf_store: VectorStore,
     path_store: VectorStore,
 ) -> None:
-    """Embed one chunk and upsert into all three ChromaDB collections."""
+    """Embed one chunk and upsert into all three the local vector store collections."""
     logger.info("  embedding leaf descriptions...")
     leaf_embeddings = await embed_texts(
         [e.description for e in entries],
@@ -100,15 +100,9 @@ async def main(limit: int | None, chapters: list[str] | None) -> None:
     logger.info(f"Saved flat entries to {processed_path}")
 
     if is_test:
-        import chromadb
+        store = VectorStore(COLLECTION_AVG, path="data/vectors_test")
 
-        chroma_path = "data/chroma_test"
-        client = chromadb.PersistentClient(path=chroma_path)
-        collection = client.get_or_create_collection(
-            "hts_entries", metadata={"hnsw:space": "cosine"}
-        )
-
-        already_indexed: set[str] = set(collection.get(include=[])["ids"])
+        already_indexed: set[str] = set(store.get_all_ids())
         todo = [e for e in flat_entries if e.hts_code not in already_indexed]
         if already_indexed:
             logger.info(
@@ -130,23 +124,9 @@ async def main(limit: int | None, chapters: list[str] | None) -> None:
             combined = [
                 _average_embeddings(leaf, p) for leaf, p in zip(leaf_embs, path_embs)
             ]
-            collection.upsert(
-                ids=[e.hts_code for e in chunk],
-                embeddings=combined,  # ty: ignore[invalid-argument-type]
-                documents=[e.path_string for e in chunk],
-                metadatas=[
-                    {
-                        "hts_code": e.hts_code,
-                        "description": e.description,
-                        "path": " | ".join(e.path),
-                        "indent": e.indent,
-                        "general_rate": e.general_rate,
-                    }
-                    for e in chunk
-                ],
-            )
+            store.upsert(chunk, combined)
         logger.info(
-            f"Test ChromaDB at '{chroma_path}' now contains {collection.count():,} entries"
+            f"Test local vector store now contains {store.count:,} entries"
         )
     else:
         avg_store = VectorStore(COLLECTION_AVG)
@@ -167,13 +147,13 @@ async def main(limit: int | None, chapters: list[str] | None) -> None:
             )
             await ingest_chunk(chunk, avg_store, leaf_store, path_store)
 
-        logger.info(f"ChromaDB now contains {avg_store.count:,} entries")
+        logger.info(f"the local vector store now contains {avg_store.count:,} entries")
 
     logger.info("Ingestion complete.")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Ingest HTS data into ChromaDB")
+    parser = argparse.ArgumentParser(description="Ingest HTS data into the local vector store")
     parser.add_argument(
         "--limit",
         type=int,

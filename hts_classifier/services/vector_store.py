@@ -1,6 +1,6 @@
 from pathlib import Path
 
-import chromadb
+from .local_vectors import PersistentClient
 
 from ..core.config import settings
 from ..data.processor import HTSEntry
@@ -13,9 +13,10 @@ COLLECTION_PATH = "hts_entries_path"
 
 
 class VectorStore:
-    def __init__(self, collection_name: str = COLLECTION_AVG) -> None:
-        Path(settings.chroma_path).mkdir(parents=True, exist_ok=True)
-        self._client = chromadb.PersistentClient(path=settings.chroma_path)
+    def __init__(self, collection_name: str = COLLECTION_AVG, path: str | None = None) -> None:
+        storage_path = path or settings.vector_path
+        Path(storage_path).mkdir(parents=True, exist_ok=True)
+        self._client = PersistentClient(path=storage_path)
         self._collection = self._client.get_or_create_collection(
             name=collection_name,
             metadata={"hnsw:space": "cosine"},
